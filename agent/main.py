@@ -5,35 +5,16 @@ import logging
 import logging.config
 import requests as r
 from docker.models.containers import Container
-from dynaconf import settings
+from dynaconf import Dynaconf
 import utils
 
-log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("docker").setLevel(logging.WARNING)
-logging.config.fileConfig(log_config, disable_existing_loggers=False)
-LOGGER = logging.getLogger()
-
+settings = Dynaconf(settings_file='settings.toml')
 IMAGE_NAME = settings.IMAGE_NAME
-MANAGER = settings.COORDINATOR_URI
+docker_client = docker.from_env()
 
-NODE_ID = utils.get_hardware_id()
+containers =  docker_client.containers.list()
 
-node = r.get(f"{MANAGER}/nodes/{NODE_ID}")
-assert node.ok
-node = node.text
-
-if node == 'null':
-    # if this node doesn't exit, create it
-    node = r.post(f"{MANAGER}/nodes/{NODE_ID}", json={
-        'ip': settings.HOST_IP,
-        'capacity': settings.HOST_CAPACITY,
-        'description': settings.HOST_DESC
-    })
-    assert node.ok
-    LOGGER.info("create node %s", node.text)
-
-DOCKER_CLIENT = docker.from_env()
-for image in client.images.list():
-    print(image.id)
-
+for container in docker_client.containers.list(all=True):
+    if container.attrs['Config']['Image'] == IMAGE_NAME:
+        print("Jump here")
+        docker_client.containers.run(container.name, detach= False)

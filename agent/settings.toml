@@ -1,4 +1,4 @@
-IMAGE_NAME = 'deepstream-app'
+IMAGE_NAME = 'python-docker:latest'
 IMAGE_TAG = 'latest'
 COORDINATOR_URI = "http://localhost:3001/api"
 
