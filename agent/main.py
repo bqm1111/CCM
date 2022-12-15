@@ -12,7 +12,29 @@ import utils
 import asyncio
 import threading
 import asyncio
-import aiodocker
+from confluent_kafka import Consumer, Producer, Message
+
+TOPIC200 = "AgentReport"
+TOPIC201 = "AgentCommand"
+TOPIC210 = "AgentConfig"
+TOPIC220 = "AgentResponse"
+
+# TODO: Remove hard code the address of bootstrap server
+CONSUMER = Consumer(
+    {
+        "bootstrap.servers": "172.21.100.167:9092",
+        "auto.offset.reset": "latest",
+        "enable.auto.commit": "true",
+        # Autocommit every 2 seconds. If a message isn't be matched in within 2 seconds, it should be ignore anyway
+        # 'auto.commit.interval.ms': 2000,
+        "group.id": "matchergroup",
+    }
+)
+
+CONSUMER.subscribe([TOPIC201, TOPIC210])
+
+PRODUCER = Producer({"bootstrap.servers": "tainp.local:9092"})
+
 
 settings = Dynaconf(settings_file='settings.toml')
 IMAGE_NAME = settings.IMAGE_NAME

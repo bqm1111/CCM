@@ -1,0 +1,3 @@
+pydantic
+json2xml
+pydantic-to-typescript

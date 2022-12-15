@@ -1,53 +1,79 @@
-import os
+from fastapi import FastAPI, status, HTTPException
+from database import Base, engine
+from sqlalchemy.orm import Session
+from models import Agent
+from schema import AgentInfo, AgentCreate
 
-from flask import Flask, redirect, render_template, request
-from flask_sqlalchemy import SQLAlchemy
+Base.metadata.create_all(engine)
 
-app = Flask(__name__)
-
-project_dir = os.path.dirname(os.path.abspath(__file__))
-database_file = "sqlite:///{}".format(os.path.join(project_dir, "sample.db"))
-app.config["SQLALCHEMY_DATABASE_URI"] = database_file
-db = SQLAlchemy(app)
-
-class Book(db.Model):
-    title = db.Column(db.String(80), unique=True,
-                      nullable=False, primary_key=True)
-
-    def __repr__(self):
-        return "<Title: {}>".format(self.title)
+app = FastAPI()
 
 
-@app.route("/", methods=["GET", "POST"])
-def home():
-    if request.form:
-        if request.form:
-            book = Book(title=request.form.get("title"))
-            db.session.add(book)
-            db.session.commit()
-    books = Book.query.all()
-    return render_template("home.html", books=books)
+@app.get("/")
+def root():
+    return "CRUD agent information"
 
 
-
-@app.route("/delete", methods=["POST"])
-def delete():
-    title = request.form.get("title")
-    book = Book.query.filter_by(title=title).first()
-    db.session.delete(book)
-    db.session.commit()
-    return redirect("/")
-
-
-@app.route("/update", methods=["POST"])
-def update():
-    newtitle = request.form.get("newtitle")
-    oldtitle = request.form.get("oldtitle")
-    book = Book.query.filter_by(title=oldtitle).first()
-    book.title = newtitle
-    db.session.commit()
-    return redirect("/")
+@app.post("/coordinator", status_code=status.HTTP_201_CREATED)
+def create_coordinator(agentInfo: AgentCreate):
+    session = Session(bind=engine, expire_on_commit=False)
+    new_info = Agent(computer_id = agentInfo.computer_id, ip_address=agentInfo.ip_address)
+    session.add(new_info)
+    session.commit()
+    session.refresh(new_info)
+    
+    session.close()
+    
+    return new_info
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+@app.get("/coordinator/{id}")
+def read_coordinator(id: int):
+    session = Session(bind=engine, expire_on_commit=False)
+    agent = session.query(Agent).get(id)
+    session.close()
+    
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent item with id {id} not found")
+    return agent
+
+@app.put("/coordinator/{id}")
+def update_coordinator(id: int, info: AgentInfo):
+    session = Session(bind=engine, expire_on_commit=False)
+    agent = session.query(Agent).get(id)
+    
+    if agent:
+        agent.computer_id = info.computer_id
+        agent.ip_address = info.ip_address
+        session.commit()
+    session.close()
+    
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
+    
+        
+    return agent
+
+
+@app.delete("/coordinator/{id}")
+def delete_coordinator(id: int):
+    session = Session(bind=engine, expire_on_commit=False)
+    agent = session.query(Agent).get(id)
+    
+    if agent:
+        session.delete(agent)
+        session.commit()
+        session.close()
+    else:
+        raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
+    return None
+
+
+@app.get("/coordinator")
+def read_coordinator_list():
+    session = Session(bind=engine, expire_on_commit=False)
+    
+    agent_list = session.query(Agent).all()
+    
+    session.close()
+    return agent_list

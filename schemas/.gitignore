@@ -1,0 +1,9 @@
+appconfig.json
+source_list.json
+__pycache__/
+mot_primary.txt
+faceid_primary.txt
+faceid_align_config.txt
+mot_sgie.txt
+faceid_secondary.txt
+app_config.json
