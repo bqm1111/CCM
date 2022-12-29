@@ -2,7 +2,7 @@ import re
 import os
 from enum import Enum, IntEnum
 from pydantic import BaseModel, Field
-
+from typing import List
 class DsAppStatus(IntEnum):
     RUNNING = 1
     STOPPED = 0
@@ -16,7 +16,6 @@ TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
-
 
 class TOPIC200Model(BaseModel):
     """Contain information of each agent"""    
@@ -34,6 +33,10 @@ class TOPIC201Model(BaseModel):
     class Config:
         title = "AgentCommand"
 
+class TOPIC210Model(BaseModel):
+    """configuration for agent in each host machine"""
+    URIs: List[str]
+    
 class TOPIC210Model(BaseModel):
     """Announce new configuration for agents"""   
     class Config:
