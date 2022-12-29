@@ -319,7 +319,7 @@ def __write_test():
         labelfile_path="../../data/labels/mot_pgie_labels.txt",
         custom_lib_path="../../build/src/nvdsinfer_customparser/libnvds_infercustomparser.so",
     )
-
+    
     face_pgie = FACE_pgie_config(
         gpu_id=0,
         batch_size=len(source.sources),

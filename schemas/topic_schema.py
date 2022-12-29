@@ -1,6 +1,6 @@
 from typing import List
 from pydantic import BaseModel, UUID4, IPvAnyAddress, NonNegativeInt, Field
-from config_schema import InstanceConfig
+from schemas.app_config_schema import InstanceConfig
 from pydantic2ts import generate_typescript_defs
 
 

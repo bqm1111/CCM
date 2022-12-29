@@ -3,7 +3,7 @@ from typing import List
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka import KafkaException
 
-TOPIC200 = "AgentReport"
+TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
