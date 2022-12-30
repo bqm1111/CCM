@@ -19,7 +19,6 @@ from pydantic import (
     DirectoryPath,
 )
 
-
 class DsAppType(str, Enum):
     DEFAULT = "NORMAL"
     NORMAL = "NORMAL"
@@ -99,6 +98,40 @@ class ModelColorFormat(IntEnum):
 class BoolEnum(IntEnum):
     FALSE = 0
     TRUE = 1
+
+
+TOPIC200 = "AgentInfo"
+TOPIC201 = "AgentCommand"
+TOPIC210 = "AgentConfig"
+TOPIC220 = "AgentResponse"
+
+class TOPIC200Model(BaseModel):
+    """Contain information of each agent"""    
+    agent_id: str
+    hostname: str
+    ip_address: str
+    
+    class Config:
+        title = "AgentInfo"
+
+class TOPIC201Model(BaseModel):
+    """Record to acknowledge the agent that it is allowed to enter the system"""
+    allowed: bool
+    
+    class Config:
+        title = "AgentCommand"
+    
+class TOPIC210Model(BaseModel):
+    """Announce new configuration for agents"""  
+    camera_info : List[SingleSourceConfig]
+    class Config:
+        title = "AgentConfig"
+        
+
+class TOPIC220Model(BaseModel):
+    """Response message of agent to coordinator"""
+    class Config:
+        title = "AgentResponse"
 
 
 class NVinferConfig(BaseModel):

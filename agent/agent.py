@@ -9,13 +9,9 @@ from dynaconf import Dynaconf
 import utils
 from confluent_kafka import Consumer, Producer, Message
 import json
-from pydantic import parse_raw_as
-from schemas.agent_config_schema import TOPIC210Model
+from pydantic import parse_raw_as, parse_obj_as
+from schemas.config_schema import TOPIC210Model, TOPIC200, TOPIC201, TOPIC210, TOPIC220, DsAppConfig
 
-TOPIC200 = "AgentInfo"
-TOPIC201 = "AgentCommand"
-TOPIC210 = "AgentConfig"
-TOPIC220 = "AgentResponse"
 """query the server config. example:
 server_configs = {
     "MTAR_example": {
@@ -52,26 +48,34 @@ PRODUCER = Producer({"bootstrap.servers": BOOTSTRAP_SERVER})
 
 settings = Dynaconf(settings_file='settings.toml')
 IMAGE_NAME = settings.IMAGE_NAME
-docker_client = docker.from_env()
+DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
 
-containers =  docker_client.containers.list()
+containers =  DOCKER_CLIENT.containers.list()
 
 index = 0
 
 RUNNING = True
 def consume():
     while RUNNING:
-        msg = CONSUMER.poll(1)
+        local_configs = {}
+        containers = {}
+        for _container in DOCKER_CLIENT.containers.list():
+            if _container.attrs['Config']['Image'] == IMAGE_NAME:
+                containers[_container.name] = _container
+                _id, _config = utils.read_config(_container)
+                local_configs[_id] = _config
         
+        
+        msg = CONSUMER.poll(1)
         if msg is None:
                 continue
         if msg.error():
             print(f"Consumer error: {msg.error()}")
-            
+
         if msg.topic() == TOPIC210:
             data = parse_raw_as(TOPIC210Model, msg.value())
-            print(data.URIs)
+            
         if msg.topic() == TOPIC201:
             print("Hearing from topic201")
 
