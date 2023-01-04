@@ -10,7 +10,10 @@ import utils
 from confluent_kafka import Consumer, Producer, Message
 import json
 from pydantic import parse_raw_as, parse_obj_as
-from schemas.config_schema import TOPIC210Model, TOPIC200, TOPIC201, TOPIC210, TOPIC220, DsAppConfig
+from schemas.config_schema import (TOPIC210Model, 
+                                   TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+                                   DsAppConfig,
+                                   write_config)
 
 """query the server config. example:
 server_configs = {
@@ -28,7 +31,7 @@ server_configs = {
 """
 
 # TODO: Remove hard code the address of bootstrap server
-BOOTSTRAP_SERVER = "172.21.100.167:9092"
+BOOTSTRAP_SERVER = "172.21.100.242:9092"
 # 
 CONSUMER = Consumer(
     {
@@ -52,34 +55,38 @@ DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
 
 containers =  DOCKER_CLIENT.containers.list()
-
-index = 0
-
+# image = DOCKER_CLIENT.images.pull(IMAGE_NAME, settings.IMAGE_TAG)
 RUNNING = True
+
 def consume():
     while RUNNING:
         local_configs = {}
         containers = {}
         for _container in DOCKER_CLIENT.containers.list():
             if _container.attrs['Config']['Image'] == IMAGE_NAME:
+                print(_container.attrs['Config']['Image'])
                 containers[_container.name] = _container
                 _id, _config = utils.read_config(_container)
                 local_configs[_id] = _config
         
-        
+
         msg = CONSUMER.poll(1)
         if msg is None:
-                continue
+            continue
         if msg.error():
             print(f"Consumer error: {msg.error()}")
-
+        
         if msg.topic() == TOPIC210:
             data = parse_raw_as(TOPIC210Model, msg.value())
+            
+            write_config("configs/", data.instance_config)
+            # for source in data.instance_config.sourceconfig:
+            #     print(source)
             
         if msg.topic() == TOPIC201:
             print("Hearing from topic201")
 
-
+# 
 # if docker_client.images.get(IMAGE_NAME):
 #     container = docker_client.containers.run(IMAGE_NAME, name="deepstream-app", stdout=True, detach=True, auto_remove=True)
 #     for line in container.logs(stream=True):
@@ -87,7 +94,6 @@ def consume():
     
 # else:
 #     print("Image not exist")
-
 
 def main():
     """main function to be call"""

@@ -25,7 +25,7 @@ class DsAppType(str, Enum):
     VISUAL = "VISUAL"
     DEBUG = "VISUAL"
 
-
+# 
 class DsAppConfig(BaseModel):
     """Config for deepstream app"""
 
@@ -104,34 +104,6 @@ TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
-
-class TOPIC200Model(BaseModel):
-    """Contain information of each agent"""    
-    agent_id: str
-    hostname: str
-    ip_address: str
-    
-    class Config:
-        title = "AgentInfo"
-
-class TOPIC201Model(BaseModel):
-    """Record to acknowledge the agent that it is allowed to enter the system"""
-    allowed: bool
-    
-    class Config:
-        title = "AgentCommand"
-    
-class TOPIC210Model(BaseModel):
-    """Announce new configuration for agents"""  
-    camera_info : List[SingleSourceConfig]
-    class Config:
-        title = "AgentConfig"
-        
-
-class TOPIC220Model(BaseModel):
-    """Response message of agent to coordinator"""
-    class Config:
-        title = "AgentResponse"
 
 
 class NVinferConfig(BaseModel):
@@ -292,6 +264,34 @@ class InstanceConfig(BaseModel):
     mot_sgie: MOT_sgie_config
     face_sgie: FACE_sgie_config
     face_align: FACE_align_config
+    
+class TOPIC200Model(BaseModel):
+    """Contain information of each agent"""    
+    agent_id: str
+    hostname: str
+    ip_address: str
+    
+    class Config:
+        title = "AgentInfo"
+
+class TOPIC201Model(BaseModel):
+    """Record to acknowledge the agent that it is allowed to enter the system"""
+    allowed: bool
+    class Config:
+        title = "AgentCommand"
+    
+class TOPIC210Model(BaseModel):
+    """Announce new configuration for agents"""  
+    instance_config: InstanceConfig
+    class Config:
+        title = "AgentConfig"
+        
+
+class TOPIC220Model(BaseModel):
+    """Response message of agent to coordinator"""
+    class Config:
+        title = "AgentResponse"
+
 
 
 T = TypeVar("T")
@@ -314,22 +314,22 @@ def write_config(
     with open(os.path.join(path, "app_config.json"), "w") as f:
         f.write(instance_config.appconfig.json(indent=4))
 
-    with open(os.path.join("source_list.json"), "w") as f:
+    with open(os.path.join(path, "source_list.json"), "w") as f:
         f.write(instance_config.sourceconfig.json(indent=4))
 
-    with open(os.path.join("mot_primary.txt"), "w") as f:
+    with open(os.path.join(path, "mot_primary.txt"), "w") as f:
         f.write(str(instance_config.mot_pgie))
 
-    with open(os.path.join("faceid_primary.txt"), "w") as f:
+    with open(os.path.join(path, "faceid_primary.txt"), "w") as f:
         f.write(str(instance_config.face_pgie))
 
-    with open(os.path.join("mot_sgie.txt"), "w") as f:
+    with open(os.path.join(path, "mot_sgie.txt"), "w") as f:
         f.write(str(instance_config.mot_sgie))
 
-    with open(os.path.join("faceid_secondary.txt"), "w") as f:
+    with open(os.path.join(path, "faceid_secondary.txt"), "w") as f:
         f.write(str(instance_config.face_sgie))
 
-    with open(os.path.join("faceid_align_config.txt"), "w") as f:
+    with open(os.path.join(path, "faceid_align_config.txt"), "w") as f:
         f.write(str(instance_config.face_align))
 
 
@@ -382,7 +382,7 @@ def __write_test():
         input_object_min_height=50,
         input_object_max_height=2160,
     )
-
+    
     instance_config = InstanceConfig(
         appconfig=appconfig,
         sourceconfig=source,

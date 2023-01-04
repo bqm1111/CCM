@@ -18,11 +18,12 @@ def read_config(container: Container) -> Tuple[str, str]:
     return tuple of (container.id, config)
     """
     for mount in container.attrs['Mounts']:
-        if mount['Destination'] == '/workspace/config':
+        if mount['Destination'] == '/workspace/configs':
             break
     # read config from mount['Source']
     with open(mount['Source'] + '/app_conf.json') as f:
         config = f.read()
+        print(config)
         return (container.name, json.loads(config))
 
 

@@ -9,7 +9,7 @@ TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
 admin_client = AdminClient(
     {
-        "bootstrap.servers": "172.21.100.167:9092",
+        "bootstrap.servers": "172.21.100.242:9092",
     }
 )
 
