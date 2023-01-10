@@ -1,23 +1,14 @@
 """One should use DsAppConfig, VideoConfig, MOT_sgie_config, FACE_sgie_config, parse_txt_as"""
-import re
 import os
+import re
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import List, Optional, Type, TypeVar
-from pydantic import (
-    BaseModel,
-    Field,
-    AnyHttpUrl,
-    PositiveInt,
-    NonNegativeInt,
-    PositiveFloat,
-    NonNegativeFloat,
-    AnyUrl,
-    parse_obj_as,
-    StrBytes,
-    constr,
-    DirectoryPath,
-)
+from typing import List, Optional, Tuple, Type, TypeVar
+
+from pydantic import (AnyHttpUrl, AnyUrl, BaseModel, DirectoryPath, Field,
+                      NonNegativeFloat, NonNegativeInt, PositiveFloat,
+                      PositiveInt, StrBytes, constr, parse_obj_as)
+
 
 class DsAppType(str, Enum):
     DEFAULT = "NORMAL"
@@ -120,7 +111,7 @@ class NVinferConfig(BaseModel):
     )
     model_color_format: Optional[ModelColorFormat]
     infer_dims: Optional[constr(regex=r"^[\d;]*$")]
-    interval: Optional[PositiveInt] = Field(
+    interval: Optional[NonNegativeInt] = Field(
         description="Specifies the number of consecutive batches to be skipped for inference"
     )
 
@@ -132,9 +123,9 @@ class PGIEConfig(NVinferConfig):
     num_detected_classes: PositiveInt
     output_blob_names: Optional[str]
     cluster_mode: ClusterMode = ClusterMode.NMS
-    maintain_aspect_ratio: PositiveInt = Field(1, const=True)
+    maintain_aspect_ratio: NonNegativeInt = Field(1, const=True)
     process_mode: PositiveInt = Field(1, const=True)
-    symmetric_padding: PositiveInt = Field(1, const=True)
+    symmetric_padding: NonNegativeInt = Field(1, const=True)
     network_type: NetworkType = Field(NetworkType.DETECTOR, const=True)
 
     """PGIE class-attrs-all"""
@@ -256,7 +247,7 @@ class FACE_align_config(BaseModel):
         return data
 
 
-class InstanceConfig(BaseModel):
+class DsInstanceConfig(BaseModel):
     appconfig: DsAppConfig
     sourceconfig: SourcesConfig
     mot_pgie: MOT_pgie_config
@@ -264,13 +255,20 @@ class InstanceConfig(BaseModel):
     mot_sgie: MOT_sgie_config
     face_sgie: FACE_sgie_config
     face_align: FACE_align_config
+
+class DsInstanceInfo(BaseModel):
+    name: str
+    config: DsInstanceConfig
+
+class MachineInfo(BaseModel):
+    hostname: str
+    ip_address: str
+    machine_id: str
+    deepstream_app_info_list: List[DsInstanceInfo]
     
 class TOPIC200Model(BaseModel):
     """Contain information of each agent"""    
-    agent_id: str
-    hostname: str
-    ip_address: str
-    
+    machine_info: MachineInfo
     class Config:
         title = "AgentInfo"
 
@@ -279,10 +277,11 @@ class TOPIC201Model(BaseModel):
     allowed: bool
     class Config:
         title = "AgentCommand"
-    
+
+
 class TOPIC210Model(BaseModel):
     """Announce new configuration for agents"""  
-    instance_config: InstanceConfig
+    machine_config_list: List[MachineInfo]
     class Config:
         title = "AgentConfig"
         
@@ -297,18 +296,18 @@ class TOPIC220Model(BaseModel):
 T = TypeVar("T")
 
 
-def parse_txt_as(type_: Type[T], b: StrBytes) -> T:
+def parse_txt_as(type_: Type[T], b: StrBytes) -> Tuple[str, T]:
     matchlist = re.findall(r"^(?P<key>[a-z\-]+)=(?P<value>[^#\s]*)(?P<comment>[^\n]*#*.*)$", b, re.MULTILINE)
     argdict = {}
     for match in matchlist:
         argdict[match[0].replace("-", "_")] = match[1]
-
-    return parse_obj_as(type_, argdict)
+        
+    return argdict, parse_obj_as(type_, argdict)
 
 
 def write_config(
     path: DirectoryPath,
-    instance_config: InstanceConfig
+    instance_config: DsInstanceConfig
 ):
     """write app_conf as well as all network configurations"""
     with open(os.path.join(path, "app_config.json"), "w") as f:
@@ -348,30 +347,30 @@ def __write_test():
     mot_pgie = MOT_pgie_config(
         gpu_id=0,
         batch_size=len(source.sources),
-        model_engine_file="../../data/models/trt/deepsort_detector.trt",
-        labelfile_path="../../data/labels/mot_pgie_labels.txt",
-        custom_lib_path="../../build/src/nvdsinfer_customparser/libnvds_infercustomparser.so",
+        model_engine_file="../data/models/trt/deepsort_detector.trt",
+        labelfile_path="../data/labels/mot_pgie_labels.txt",
+        custom_lib_path="../build/src/nvdsinfer_customparser/libnvds_infercustomparser.so",
     )
     
     face_pgie = FACE_pgie_config(
         gpu_id=0,
         batch_size=len(source.sources),
-        model_engine_file="../../build/model_b12_gpu0_fp16.engine",
-        labelfile_path="../../data/labels/face_labels.txt",
-        custom_lib_path="../../build/src/facedetection/libnvds_facedetection.so",
+        model_engine_file="../build/model_b12_gpu0_fp16.engine",
+        labelfile_path="../data/labels/face_labels.txt",
+        custom_lib_path="../build/src/facedetection/libnvds_facedetection.so",
     )
 
     mot_sgie = MOT_sgie_config(
         gpu_id=0,
         batch_size=12,
-        model_engine_file="../../data/models/trt/deepsort_extractor.trt",
+        model_engine_file="../data/models/trt/deepsort_extractor.trt",
     )
 
     face_sgie = FACE_sgie_config(
         gpu_id=0,
         batch_size=32,
-        model_engine_file="../../data/models/trt/glint360k_r50.trt",
-        custom_lib_path="../../build/src/facefeature/libnvds_parsenone.so",
+        model_engine_file="../data/models/trt/glint360k_r50.trt",
+        custom_lib_path="../build/src/facefeature/libnvds_parsenone.so",
         parse_bbox_func_name="NvDsInferParseNone",
     )
 
@@ -383,7 +382,7 @@ def __write_test():
         input_object_max_height=2160,
     )
     
-    instance_config = InstanceConfig(
+    instance_config = DsInstanceConfig(
         appconfig=appconfig,
         sourceconfig=source,
         mot_pgie=mot_pgie,
@@ -397,22 +396,22 @@ def __write_test():
 
 
 def __parse_test():
-    with open("example_configs/faceid/faceid_primary.txt") as f:
-        a = parse_txt_as(FACE_pgie_config, f.read())
+    with open("faceid_primary.txt") as f:
+        face_pgie, a = parse_txt_as(FACE_pgie_config, f.read())
+        print(face_pgie)
+    with open("mot_primary.txt") as f:
+        _, a = parse_txt_as(MOT_pgie_config, f.read())
 
-    with open("example_configs/faceid/mot_primary.txt") as f:
-        a = parse_txt_as(MOT_pgie_config, f.read())
+    with open("faceid_secondary.txt") as f:
+        _, a = parse_txt_as(FACE_sgie_config, f.read())
 
-    with open("example_configs/faceid/faceid_secondary.txt") as f:
-        a = parse_txt_as(FACE_sgie_config, f.read())
+    with open("mot_sgie_copy.txt") as f:
+        _, a = parse_txt_as(MOT_sgie_config, f.read())
 
-    with open("example_configs/faceid/mot_sgie.txt") as f:
-        a = parse_txt_as(MOT_sgie_config, f.read())
-
-    with open("example_configs/faceid/faceid_align_config.txt") as f:
-        a = parse_txt_as(FACE_align_config, f.read())
+    with open("faceid_align_config.txt") as f:
+        _, a = parse_txt_as(FACE_align_config, f.read())
 
 
 if __name__ == "__main__":
-    __write_test()
+    # __write_test()
     __parse_test()

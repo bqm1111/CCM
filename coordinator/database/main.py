@@ -1,8 +1,8 @@
-from fastapi import FastAPI, status, HTTPException
 from database import Base, engine
-from sqlalchemy.orm import Session
+from fastapi import FastAPI, HTTPException, status
 from models import Agent
-from schema import AgentInfo, AgentCreate
+from schema import AgentCreate, AgentInfo
+from sqlalchemy.orm import Session
 
 Base.metadata.create_all(engine)
 

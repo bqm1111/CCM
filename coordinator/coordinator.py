@@ -1,26 +1,26 @@
 """simple producer"""
+import json
 from time import sleep
-from json import dumps
+import socket
 from confluent_kafka import Producer
-from schemas.config_schema import (
-    TOPIC210Model, 
-    TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-    SingleSourceConfig,
-    InstanceConfig,
-    SourcesConfig,
-    DsAppConfig,
-    MOT_pgie_config,
-    MOT_sgie_config,
-    FACE_align_config,
-    FACE_pgie_config,
-    FACE_sgie_config
-    
-)
+import subprocess
+from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+                                   DsAppConfig, DsInstanceConfig,
+                                   FACE_align_config, FACE_pgie_config,
+                                   FACE_sgie_config, MOT_pgie_config,
+                                   MOT_sgie_config, SingleSourceConfig,
+                                   MachineInfo, DsInstanceInfo,
+                                   SourcesConfig, TOPIC210Model, parse_txt_as)
 
 BOOTSTRAP_SERVER = "172.21.100.242:9092"
 
 PRODUCER = Producer({'bootstrap.servers': BOOTSTRAP_SERVER})
 RUNNING = True
+
+def get_hardware_id():
+    """get hardware id of machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
+    p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
+    return p.stdout.decode().rstrip()
 
 def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
@@ -30,74 +30,63 @@ def delivery_report(err, msg):
     else:
         print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
+def create_sample_TOPIC210():
+    with open("../sample_configs/app_conf.json", "r") as f:
+        appconfig = json.load(f)
+    with open("../sample_configs/source_list.json", "r") as f:
+        source_list_json = json.load(f)
+    source_list = []
+    for cam in source_list_json["stream"]:
+        source_list.append(SingleSourceConfig.parse_obj(cam))
+
+
+    with open("../sample_configs/faceid_primary.txt") as f:
+        face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
+    with open("../sample_configs/mot_primary.txt") as f:
+        mot_pgie_json, _ = parse_txt_as(MOT_pgie_config, f.read())
+
+    with open("../sample_configs/faceid_secondary.txt") as f:
+        face_sgie_json, _ = parse_txt_as(FACE_sgie_config, f.read())
+
+    with open("../sample_configs/mot_sgie.txt") as f:
+        mot_sgie_json, _ = parse_txt_as(MOT_sgie_config, f.read())
+
+    with open("../sample_configs/faceid_align_config.txt") as f:
+        face_align_json, _ = parse_txt_as(FACE_align_config, f.read())
+
+    face_pgie_conf = FACE_pgie_config.parse_obj(face_pgie_json)
+    face_sgie_conf = FACE_sgie_config.parse_obj(face_sgie_json)
+    face_align_conf = FACE_align_config.parse_obj(face_align_json)
+    mot_pgie_conf = MOT_pgie_config.parse_obj(mot_pgie_json)
+    mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
+    app_conf = DsAppConfig.parse_obj(appconfig)
+    source_conf = SourcesConfig(sources=source_list)
+
+
+    instance_config = DsInstanceConfig(appconfig=app_conf, 
+                                    sourceconfig=source_conf,
+                                    face_pgie=face_pgie_conf,
+                                    face_sgie=face_sgie_conf,
+                                    face_align=face_align_conf,
+                                    mot_pgie=mot_pgie_conf,
+                                    mot_sgie=mot_sgie_conf)
+    deepstream_instance_info_list = []
+    deepstream_instance_info_list.append(DsInstanceInfo(name="deepstream-VTX", config=instance_config))
+    deepstream_instance_info_list.append(DsInstanceInfo(name="deepstream-VHT", config=instance_config))
+    
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    machine_id=get_hardware_id()
+    return TOPIC210Model(machine_config_list=[MachineInfo(hostname=hostname, ip_address=ip_address,
+                                                machine_id=machine_id,
+                                                deepstream_app_info_list=deepstream_instance_info_list)])
 
 def produce():
     while RUNNING:
         # Trigger any available delivery report callbacks from previous produce() calls
         PRODUCER.poll(0)
-        appconfig = DsAppConfig(kafka_connection_str="172.21.100.242:9092", streammux_batch_size=1)
-
-        source = SourcesConfig(
-            sources=[
-                SingleSourceConfig(camera_id=3, address="rtsp://admin:123456a%40@172.21.111.101/main"),
-                SingleSourceConfig(camera_id=1, address="rtsp://admin:123456a%40@172.21.111.104/main"),
-                SingleSourceConfig(camera_id=2, address="rtsp://admin:123456a%40@172.21.111.111/main"),
-                SingleSourceConfig(camera_id=4, address="rtsp://admin:123456a%40@172.21.104.112/main"),
-            ]
-        )
-
-        mot_pgie = MOT_pgie_config(
-            gpu_id=0,
-            batch_size=len(source.sources),
-            model_engine_file="../data/models/trt/deepsort_detector.trt",
-            labelfile_path="../data/labels/mot_pgie_labels.txt",
-            custom_lib_path="../build/src/nvdsinfer_customparser/libnvds_infercustomparser.so",
-        )
-        
-        face_pgie = FACE_pgie_config(
-            gpu_id=0,
-            batch_size=len(source.sources),
-            model_engine_file="../build/model_b12_gpu0_fp16.engine",
-            labelfile_path="../data/labels/face_labels.txt",
-            custom_lib_path="../build/src/facedetection/libnvds_facedetection.so",
-        )
-
-        mot_sgie = MOT_sgie_config(
-            gpu_id=0,
-            batch_size=12,
-            model_engine_file="../data/models/trt/deepsort_extractor.trt",
-        )
-
-        face_sgie = FACE_sgie_config(
-            gpu_id=0,
-            batch_size=32,
-            model_engine_file="../data/models/trt/glint360k_r50.trt",
-            custom_lib_path="../build/src/facefeature/libnvds_parsenone.so",
-            parse_bbox_func_name="NvDsInferParseNone",
-        )
-        
-
-        face_align = FACE_align_config(
-            tensor_buf_pool_size=10,
-            input_object_min_width=50,
-            input_object_max_width=3840,
-            input_object_min_height=50,
-            input_object_max_height=2160,
-        )
-
-        instance_config = InstanceConfig(
-            appconfig=appconfig,
-            sourceconfig=source,
-            mot_pgie=mot_pgie,
-            face_pgie=face_pgie,
-            mot_sgie=mot_sgie,
-            face_sgie=face_sgie,
-            face_align=face_align
-        )
-
-        topic210data = TOPIC210Model(instance_config=instance_config)
-        print(f"sending data: {topic210data.instance_config}")
-        # p.produce(TOPIC210, dumps(data).encode('utf-8'), callback=delivery_report)
+        topic210data = create_sample_TOPIC210()
+        print(f"sending data: {topic210data.machine_config_list}")
         PRODUCER.produce(TOPIC210, topic210data.json(), callback=delivery_report)
 
         sleep(1)

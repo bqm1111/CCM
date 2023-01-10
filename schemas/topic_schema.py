@@ -1,11 +1,11 @@
 from typing import List
 from pydantic import BaseModel, UUID4, IPvAnyAddress, NonNegativeInt, Field
-from schemas.config_schema import InstanceConfig
+from schemas.config_schema import DsInstanceConfig
 from pydantic2ts import generate_typescript_defs
 
 
 class NodeConfig(BaseModel):
-    instances: List[InstanceConfig]
+    instances: List[DsInstanceConfig]
 
 
 class InstanceStatus(BaseModel):

@@ -1,8 +1,11 @@
-from sqlalchemy import create_engine, Column, Integer, String
-from database import Base 
 from enum import Enum, IntEnum
-from schemas.agent_config_schema import DsAppMode, DsAppStatus
-    
+
+from database import Base
+from sqlalchemy import Column, Integer, String, create_engine
+
+from schemas.config_schema import DsAppMode, DsAppStatus
+
+
 class Agent(Base):
     __tablename__ = "agent"
     agent_id = Column(Integer, primary_key=True)

@@ -1,38 +1,28 @@
+import socket
+from typing import Optional
+
 import os
-import docker
-import time
 import logging
 import logging.config
+import docker
 import requests as r
+import utils 
+from confluent_kafka import Consumer, Message, Producer
 from docker.models.containers import Container
 from dynaconf import Dynaconf
-import utils
-from confluent_kafka import Consumer, Producer, Message
-import json
-from pydantic import parse_raw_as, parse_obj_as
-from schemas.config_schema import (TOPIC210Model, 
-                                   TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                   DsAppConfig,
-                                   write_config)
+from pydantic import parse_obj_as, parse_raw_as
 
-"""query the server config. example:
-server_configs = {
-    "MTAR_example": {
-        "kafka": "tainp.local:9092",
-        "topic": "xface.event",
-        "URIs": [
-            "rtsp://admin:123456a%40@172.21.104.100",
-            "rtsp://admin:123456a%40@172.21.104.101",
-            "rtsp://admin:123456a%40@172.21.104.102",
-            "rtsp://admin:123456a%40@172.21.104.103"
-        ]
-    }
-}
-"""
+from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+                                   DsAppConfig, TOPIC210Model, write_config)
+
+log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
+# logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("docker").setLevel(logging.WARNING)
+logging.config.fileConfig(log_config, disable_existing_loggers=False)
+LOGGER = logging.getLogger()
 
 # TODO: Remove hard code the address of bootstrap server
 BOOTSTRAP_SERVER = "172.21.100.242:9092"
-# 
 CONSUMER = Consumer(
     {
         "bootstrap.servers": BOOTSTRAP_SERVER,
@@ -54,21 +44,28 @@ IMAGE_NAME = settings.IMAGE_NAME
 DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
 
-containers =  DOCKER_CLIENT.containers.list()
+containers = DOCKER_CLIENT.containers.list()
 # image = DOCKER_CLIENT.images.pull(IMAGE_NAME, settings.IMAGE_TAG)
 RUNNING = True
+def update_container():
+    raise NotImplementedError
+def create_container():
+    raise NotImplementedError
+def delete_container(container_name):
+    id = DOCKER_CLIENT.containers.get(container_name).id
+    LOGGER.info(f"delete container {container_name} - ({id})")
+    contai
+    
 
 def consume():
     while RUNNING:
         local_configs = {}
         containers = {}
-        for _container in DOCKER_CLIENT.containers.list():
+        for _container in DOCKER_CLIENT.containers.list(all=True):
             if _container.attrs['Config']['Image'] == IMAGE_NAME:
-                print(_container.attrs['Config']['Image'])
-                containers[_container.name] = _container
+                containers[_container.name] = _container                
                 _id, _config = utils.read_config(_container)
                 local_configs[_id] = _config
-        
 
         msg = CONSUMER.poll(1)
         if msg is None:
@@ -77,11 +74,23 @@ def consume():
             print(f"Consumer error: {msg.error()}")
         
         if msg.topic() == TOPIC210:
-            data = parse_raw_as(TOPIC210Model, msg.value())
-            
-            write_config("configs/", data.instance_config)
-            # for source in data.instance_config.sourceconfig:
-            #     print(source)
+            data = parse_raw_as(TOPIC210Model, msg.value())    
+            hostname = socket.gethostname()
+            ip_address = socket.gethostbyname(hostname)
+            machine_id = utils.get_hardware_id()
+            server_config = {}
+            for machine in data.machine_config_list:
+                if machine.machine_id == machine_id and machine.hostname == hostname:
+                    for instance in machine.deepstream_app_info_list:
+                        server_config[instance.name] = instance.config
+                    
+                    for container_name in set(local_configs) - set(server_config):
+                        delete_container()
+                        
+                    
+                    update_container()
+                    create_container()
+                    
             
         if msg.topic() == TOPIC201:
             print("Hearing from topic201")
