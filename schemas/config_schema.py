@@ -310,6 +310,9 @@ def write_config(
     instance_config: DsInstanceConfig
 ):
     """write app_conf as well as all network configurations"""
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
     with open(os.path.join(path, "app_config.json"), "w") as f:
         f.write(instance_config.appconfig.json(indent=4))
 

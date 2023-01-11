@@ -1,5 +1,13 @@
-import socket
+from typing import List
 
-hostname = socket.gethostname()
-IPAddr = socket.gethostbyname(hostname)
- 
+from pydantic import BaseModel
+
+
+class A(BaseModel):
+    num: int
+    name: List[str]
+    
+a = A(num=1, name=["Minh", "Lan"])
+b = A(num=1, name=["Lan", "Minh"])
+
+print(a==b) 

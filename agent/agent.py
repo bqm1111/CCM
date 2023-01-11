@@ -1,5 +1,5 @@
 import socket
-from typing import Optional
+from typing import Optional, List
 
 import os
 import logging
@@ -11,12 +11,13 @@ from confluent_kafka import Consumer, Message, Producer
 from docker.models.containers import Container
 from dynaconf import Dynaconf
 from pydantic import parse_obj_as, parse_raw_as
+import tarfile
+from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,DsInstanceConfig,
+                                   DsAppConfig, TOPIC210Model, write_config, DsInstanceInfo)
 
-from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                   DsAppConfig, TOPIC210Model, write_config)
-
+settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
-# logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("docker").setLevel(logging.WARNING)
 logging.config.fileConfig(log_config, disable_existing_loggers=False)
 LOGGER = logging.getLogger()
@@ -39,7 +40,6 @@ CONSUMER.subscribe([TOPIC201, TOPIC210])
 PRODUCER = Producer({"bootstrap.servers": BOOTSTRAP_SERVER})
 
 
-settings = Dynaconf(settings_file='settings.toml')
 IMAGE_NAME = settings.IMAGE_NAME
 DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
@@ -47,14 +47,44 @@ NODE_ID = utils.get_hardware_id()
 containers = DOCKER_CLIENT.containers.list()
 # image = DOCKER_CLIENT.images.pull(IMAGE_NAME, settings.IMAGE_TAG)
 RUNNING = True
-def update_container():
-    raise NotImplementedError
-def create_container():
-    raise NotImplementedError
-def delete_container(container_name):
-    id = DOCKER_CLIENT.containers.get(container_name).id
-    LOGGER.info(f"delete container {container_name} - ({id})")
-    contai
+def update_container(name: str, server_config: DsInstanceConfig, local_config: DsInstanceConfig):
+    # Check if server config and local config are identical
+    print(server_config.appconfig)
+    print(local_config.appconfig)
+    if server_config != local_config:
+        # Update local config if there are differences
+        container = DOCKER_CLIENT.containers.get(name)
+        path = os.path.join("../configs/", name)
+        write_config(path, server_config)
+        # Restart the container
+        LOGGER.info(f"Restarting container {container.name}")
+
+        container.restart()
+        LOGGER.info(f"Restart container {container.name} ... DONE")
+
+
+def create_container(name: str, config: DsInstanceConfig):
+    # Parse configuration from config and write it to a file
+    path = os.path.join("../configs/", name)
+    write_config(path, config)        
+    # Run container with mounted config
+    config_folder = os.path.abspath(path)
+    print(config_folder)
+    LOGGER.info(f"Creating container {name}")
+    DOCKER_CLIENT.containers.run(image=IMAGE_NAME,
+                                       name=name,
+                                       # runtime="nvidia",
+                                       restart_policy={
+                                           "Name": "on-failure", "MaximumRetryCount": 5},
+                                       volumes={config_folder: {
+                                           'bind': '/workspace/config', 'mode': 'rw'}},
+                                       detach=True)
+    LOGGER.info(f"Creating container {name} ... DONE")
+def delete_container(container: Container):
+    LOGGER.info(f"deleting container {container.name} - ({container.id})")
+    container.stop()
+    container.remove()
+    LOGGER.info("delete %s (%s) ... DONE ", container.name, container.id)
     
 
 def consume():
@@ -63,6 +93,7 @@ def consume():
         containers = {}
         for _container in DOCKER_CLIENT.containers.list(all=True):
             if _container.attrs['Config']['Image'] == IMAGE_NAME:
+                
                 containers[_container.name] = _container                
                 _id, _config = utils.read_config(_container)
                 local_configs[_id] = _config
@@ -83,14 +114,16 @@ def consume():
                 if machine.machine_id == machine_id and machine.hostname == hostname:
                     for instance in machine.deepstream_app_info_list:
                         server_config[instance.name] = instance.config
-                    
                     for container_name in set(local_configs) - set(server_config):
-                        delete_container()
+                        delete_container(containers[container_name])
                         
-                    
-                    update_container()
-                    create_container()
-                    
+                    for container_name in set(server_config) - set(local_configs):
+                        create_container(container_name, server_config[container_name])
+                        
+                    for container_name in set(local_configs) & set(server_config):
+                        print(container_name)
+                        update_container(container_name, server_config[container_name], local_configs[container_name])
+                        
             
         if msg.topic() == TOPIC201:
             print("Hearing from topic201")
