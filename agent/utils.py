@@ -1,20 +1,21 @@
+import glob
 import json
 import os
 import subprocess
 import tarfile
-from io import BytesIO
+import time
+from io import BytesIO, StringIO
 from logging import Logger
 from typing import List, Tuple
 
 import docker
 from docker.models.containers import Container
 
-from schemas.config_schema import (FACE_align_config, FACE_pgie_config,
-                                   FACE_sgie_config, DsInstanceConfig,
-                                   MOT_pgie_config, MOT_sgie_config,
-                                   SingleSourceConfig, SourcesConfig,
-                                   DsAppConfig,
-                                   parse_txt_as)
+from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
+                                   FACE_align_config, FACE_pgie_config,
+                                   FACE_sgie_config, MOT_pgie_config,
+                                   MOT_sgie_config, SingleSourceConfig,
+                                   SourcesConfig, parse_txt_as)
 
 
 def get_hardware_id():
@@ -86,48 +87,27 @@ def read_config(container: Container) -> Tuple[str, DsInstanceConfig]:
 
     return (container.name, instance_config)
 
-def update_config(container: Container, config: json):
-    for mount in container.attrs['Mounts']:
-        if mount['Destination'] == '/workspace/config':
-            break
-    with open(mount['Source'] + '/config.json', 'w') as f:
-        json.dump(config, f)
+def copy_to_container(container: Container, src_path: str, dst_path: str):
+    all_config_file = os.listdir(src_path)
+    
+    for file in all_config_file:
+        with create_archive(os.path.join(src_path,file)) as archive:
+            container.put_archive(path=dst_path, data=archive)
 
-def write_config(config: json, file: str) -> None:
-    """write config to file"""
-    dir = os.path.dirname(file)
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
-    # TODO: format the configuration base on definition from deepstream
-    with open(file, 'w') as f:
-        json.dump(config, f)
-
-
-def new_container(image_name: str,
-                  container_name: str,
-                  config_file: str,
-                  dclient: docker.DockerClient):
-    """start a new container with config"""
-    config_folder = os.path.dirname(config_file)
-    container = dclient.containers.run(image_name,
-                                       name=container_name,
-                                       # runtime="nvidia",
-                                       restart_policy={
-                                           "Name": "on-failure", "MaximumRetryCount": 5},
-                                       volumes={config_folder: {
-                                           'bind': '/workspace/config', 'mode': 'ro'}},
-                                       detach=True)
-    return container
+def create_archive(file):
+    pw_tarstream = BytesIO()
+    pw_tar = tarfile.TarFile(fileobj=pw_tarstream, mode='w')
+    with open(file, "r") as f:
+        file_data = f.read()
+    tarinfo = tarfile.TarInfo(name=file)
+    tarinfo.size = len(file_data)
+    tarinfo.mtime = time.time()
+    pw_tar.addfile(tarinfo, BytesIO(file_data.encode('utf8')))
+    pw_tar.close()
+    pw_tarstream.seek(0)
+    return pw_tarstream
 
 
-def ordered(obj):
-    """sort json objects. Useful to compare two json"""
-    if isinstance(obj, dict):
-        return sorted((k, ordered(v)) for k, v in obj.items())
-    if isinstance(obj, list):
-        return sorted(ordered(x) for x in obj)
-    else:
-        return obj
 
 if __name__ == "__main__":
     image_name = 'deepstream-app'

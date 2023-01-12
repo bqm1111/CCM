@@ -1,16 +1,18 @@
 """simple producer"""
 import json
-from time import sleep
 import socket
-from confluent_kafka import Producer
 import subprocess
-from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                   DsAppConfig, DsInstanceConfig,
+from time import sleep
+
+from confluent_kafka import Producer
+
+from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
                                    MOT_sgie_config, SingleSourceConfig,
-                                   MachineInfo, DsInstanceInfo,
-                                   SourcesConfig, TOPIC210Model, parse_txt_as)
+                                   SourcesConfig, parse_txt_as)
+from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+                                  DsInstance, NodeInfo, TOPIC210Model)
 
 BOOTSTRAP_SERVER = "172.21.100.242:9092"
 
@@ -71,22 +73,22 @@ def create_sample_TOPIC210():
                                     mot_pgie=mot_pgie_conf,
                                     mot_sgie=mot_sgie_conf)
     deepstream_instance_info_list = []
-    deepstream_instance_info_list.append(DsInstanceInfo(name="deepstream-VTX", config=instance_config))
-    deepstream_instance_info_list.append(DsInstanceInfo(name="deepstream-VHT", config=instance_config))
+    deepstream_instance_info_list.append(DsInstance(name="deepstream-VTX", config=instance_config))
+    deepstream_instance_info_list.append(DsInstance(name="deepstream-VHT", config=instance_config))
     
     hostname = socket.gethostname()
     ip_address = socket.gethostbyname(hostname)
     machine_id=get_hardware_id()
-    return TOPIC210Model(machine_config_list=[MachineInfo(hostname=hostname, ip_address=ip_address,
+    return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname, ip_address=ip_address,
                                                 machine_id=machine_id,
-                                                deepstream_app_info_list=deepstream_instance_info_list)])
+                                                node_config_list=deepstream_instance_info_list)])
 
 def produce():
     while RUNNING:
         # Trigger any available delivery report callbacks from previous produce() calls
         PRODUCER.poll(0)
         topic210data = create_sample_TOPIC210()
-        print(f"sending data: {topic210data.machine_config_list}")
+        print(f"sending data: {topic210data.agent_info_list}")
         PRODUCER.produce(TOPIC210, topic210data.json(), callback=delivery_report)
 
         sleep(1)

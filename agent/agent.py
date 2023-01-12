@@ -1,19 +1,22 @@
-import socket
-from typing import Optional, List
-
-import os
 import logging
 import logging.config
+import os
+import socket
+import time
+from typing import List, Optional
+
 import docker
 import requests as r
-import utils 
+import utils
 from confluent_kafka import Consumer, Message, Producer
 from docker.models.containers import Container
 from dynaconf import Dynaconf
 from pydantic import parse_obj_as, parse_raw_as
-import tarfile
-from schemas.config_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,DsInstanceConfig,
-                                   DsAppConfig, TOPIC210Model, write_config, DsInstanceInfo)
+
+from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
+                                   write_config)
+from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+                                  TOPIC210Model, DsInstance)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -49,13 +52,15 @@ containers = DOCKER_CLIENT.containers.list()
 RUNNING = True
 def update_container(name: str, server_config: DsInstanceConfig, local_config: DsInstanceConfig):
     # Check if server config and local config are identical
-    print(server_config.appconfig)
-    print(local_config.appconfig)
+    # print(server_config.appconfig)
+    # print(local_config.appconfig)
     if server_config != local_config:
         # Update local config if there are differences
         container = DOCKER_CLIENT.containers.get(name)
         path = os.path.join("../configs/", name)
+        print(path)
         write_config(path, server_config)
+        utils.copy_to_container(container, path, "/workspace/configs")
         # Restart the container
         LOGGER.info(f"Restarting container {container.name}")
 
@@ -68,22 +73,34 @@ def create_container(name: str, config: DsInstanceConfig):
     path = os.path.join("../configs/", name)
     write_config(path, config)        
     # Run container with mounted config
-    config_folder = os.path.abspath(path)
-    print(config_folder)
     LOGGER.info(f"Creating container {name}")
+    container_engine_volume = name + "_engine"
+    container_config_volume = name + "_config"
+
     DOCKER_CLIENT.containers.run(image=IMAGE_NAME,
                                        name=name,
                                        # runtime="nvidia",
                                        restart_policy={
                                            "Name": "on-failure", "MaximumRetryCount": 5},
-                                       volumes={config_folder: {
-                                           'bind': '/workspace/config', 'mode': 'rw'}},
+                                       volumes={container_config_volume: {
+                                           'bind': '/workspace/configs', 'mode': 'rw'},
+                                                container_engine_volume: {
+                                           'bind': '/workspace/build', 'mode': 'rw'}},
                                        detach=True)
     LOGGER.info(f"Creating container {name} ... DONE")
+    LOGGER.info(f"Waiting container {name} to run")
+
+    start = time.time()
+    end = time.time()
+    while DOCKER_CLIENT.containers.get(name).status != 'running' and (end - start) < 120:
+        end = time.time()
+        LOGGER.info(f"Waiting .....")
+    LOGGER.info(f"Container {name} is running")
+
 def delete_container(container: Container):
     LOGGER.info(f"deleting container {container.name} - ({container.id})")
     container.stop()
-    container.remove()
+    # container.remove()
     LOGGER.info("delete %s (%s) ... DONE ", container.name, container.id)
     
 
@@ -93,7 +110,6 @@ def consume():
         containers = {}
         for _container in DOCKER_CLIENT.containers.list(all=True):
             if _container.attrs['Config']['Image'] == IMAGE_NAME:
-                
                 containers[_container.name] = _container                
                 _id, _config = utils.read_config(_container)
                 local_configs[_id] = _config
@@ -110,9 +126,9 @@ def consume():
             ip_address = socket.gethostbyname(hostname)
             machine_id = utils.get_hardware_id()
             server_config = {}
-            for machine in data.machine_config_list:
+            for machine in data.agent_info_list:
                 if machine.machine_id == machine_id and machine.hostname == hostname:
-                    for instance in machine.deepstream_app_info_list:
+                    for instance in machine.node_config_list:
                         server_config[instance.name] = instance.config
                     for container_name in set(local_configs) - set(server_config):
                         delete_container(containers[container_name])
@@ -121,7 +137,6 @@ def consume():
                         create_container(container_name, server_config[container_name])
                         
                     for container_name in set(local_configs) & set(server_config):
-                        print(container_name)
                         update_container(container_name, server_config[container_name], local_configs[container_name])
                         
             

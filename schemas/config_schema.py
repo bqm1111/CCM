@@ -91,12 +91,6 @@ class BoolEnum(IntEnum):
     TRUE = 1
 
 
-TOPIC200 = "AgentInfo"
-TOPIC201 = "AgentCommand"
-TOPIC210 = "AgentConfig"
-TOPIC220 = "AgentResponse"
-
-
 class NVinferConfig(BaseModel):
     __input_tensor_meta__: bool = Field(False, description="This is GST properties, not a configuration key")
     gie_unique_id: NonNegativeInt
@@ -255,43 +249,7 @@ class DsInstanceConfig(BaseModel):
     mot_sgie: MOT_sgie_config
     face_sgie: FACE_sgie_config
     face_align: FACE_align_config
-
-class DsInstanceInfo(BaseModel):
-    name: str
-    config: DsInstanceConfig
-
-class MachineInfo(BaseModel):
-    hostname: str
-    ip_address: str
-    machine_id: str
-    deepstream_app_info_list: List[DsInstanceInfo]
-    
-class TOPIC200Model(BaseModel):
-    """Contain information of each agent"""    
-    machine_info: MachineInfo
-    class Config:
-        title = "AgentInfo"
-
-class TOPIC201Model(BaseModel):
-    """Record to acknowledge the agent that it is allowed to enter the system"""
-    allowed: bool
-    class Config:
-        title = "AgentCommand"
-
-
-class TOPIC210Model(BaseModel):
-    """Announce new configuration for agents"""  
-    machine_config_list: List[MachineInfo]
-    class Config:
-        title = "AgentConfig"
         
-
-class TOPIC220Model(BaseModel):
-    """Response message of agent to coordinator"""
-    class Config:
-        title = "AgentResponse"
-
-
 
 T = TypeVar("T")
 
