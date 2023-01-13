@@ -271,7 +271,7 @@ def write_config(
     if not os.path.exists(path):
         os.makedirs(path)
         
-    with open(os.path.join(path, "app_config.json"), "w") as f:
+    with open(os.path.join(path, "app_conf.json"), "w") as f:
         f.write(instance_config.appconfig.json(indent=4))
 
     with open(os.path.join(path, "source_list.json"), "w") as f:

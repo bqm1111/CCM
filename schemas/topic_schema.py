@@ -3,7 +3,7 @@ from typing import List
 from pydantic import UUID4, BaseModel, Field, IPvAnyAddress, NonNegativeInt
 
 from schemas.config_schema import DsInstanceConfig
-
+import subprocess
 TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
@@ -15,20 +15,19 @@ class DsInstance(BaseModel):
 
 class NodeInfo(BaseModel):
     hostname: str
-    ip_address: str
-    machine_id: str
+    node_id: UUID4
     node_config_list: List[DsInstance]
 
 class InstanceStatus(BaseModel):
     pass
 
-
+# 
 class Topic200Model(BaseModel):
     """greeting from Agent to Coordinator"""
 
     message_id: UUID4
     agent_name: str
-    ip: IPvAnyAddress
+    ip: str
     capacity: NonNegativeInt = Field(description="number of camera this machine can handle")
     gpulist: List[str]
     description: str = ""
@@ -62,5 +61,9 @@ class Topic220Model(BaseModel):
         title = "AgentResponse"
 
 if __name__ == "__main__":
-    with open('schema_topic201.json', 'w') as _f:
-        _f.write(Topic201Model.schema_json(indent=4))
+    # print(IPvAnyAddress("12,42.423"))
+    p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
+
+    print(UUID4(p.stdout.decode().rstrip()))
+    # ip = 172.21.100.234
+    # print(IPvAnyAddress(ip))

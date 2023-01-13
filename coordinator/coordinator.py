@@ -13,6 +13,7 @@ from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    SourcesConfig, parse_txt_as)
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
                                   DsInstance, NodeInfo, TOPIC210Model)
+from pydantic import UUID4, IPvAnyAddress
 
 BOOTSTRAP_SERVER = "172.21.100.242:9092"
 
@@ -38,7 +39,7 @@ def create_sample_TOPIC210():
     with open("../sample_configs/source_list.json", "r") as f:
         source_list_json = json.load(f)
     source_list = []
-    for cam in source_list_json["stream"]:
+    for cam in source_list_json["sources"]:
         source_list.append(SingleSourceConfig.parse_obj(cam))
 
 
@@ -73,14 +74,13 @@ def create_sample_TOPIC210():
                                     mot_pgie=mot_pgie_conf,
                                     mot_sgie=mot_sgie_conf)
     deepstream_instance_info_list = []
-    deepstream_instance_info_list.append(DsInstance(name="deepstream-VTX", config=instance_config))
-    deepstream_instance_info_list.append(DsInstance(name="deepstream-VHT", config=instance_config))
+    deepstream_instance_info_list.append(DsInstance(name="deepstream-1", config=instance_config))
+    deepstream_instance_info_list.append(DsInstance(name="deepstream-2", config=instance_config))
     
     hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    machine_id=get_hardware_id()
-    return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname, ip_address=ip_address,
-                                                machine_id=machine_id,
+    machine_id = UUID4(get_hardware_id())
+    return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname,
+                                                node_id=machine_id,
                                                 node_config_list=deepstream_instance_info_list)])
 
 def produce():
@@ -88,7 +88,7 @@ def produce():
         # Trigger any available delivery report callbacks from previous produce() calls
         PRODUCER.poll(0)
         topic210data = create_sample_TOPIC210()
-        print(f"sending data: {topic210data.agent_info_list}")
+        print(f"sending data: {topic210data.agent_info_list[0]}")
         PRODUCER.produce(TOPIC210, topic210data.json(), callback=delivery_report)
 
         sleep(1)
