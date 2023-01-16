@@ -21,13 +21,12 @@ class NodeInfo(BaseModel):
 class InstanceStatus(BaseModel):
     pass
 
-# 
+
 class Topic200Model(BaseModel):
     """greeting from Agent to Coordinator"""
 
     message_id: UUID4
-    agent_name: str
-    ip: str
+    hostname: str
     capacity: NonNegativeInt = Field(description="number of camera this machine can handle")
     gpulist: List[str]
     description: str = ""
@@ -61,9 +60,5 @@ class Topic220Model(BaseModel):
         title = "AgentResponse"
 
 if __name__ == "__main__":
-    # print(IPvAnyAddress("12,42.423"))
     p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
-
     print(UUID4(p.stdout.decode().rstrip()))
-    # ip = 172.21.100.234
-    # print(IPvAnyAddress(ip))

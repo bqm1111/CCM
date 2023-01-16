@@ -9,14 +9,11 @@ from pydantic import (AnyHttpUrl, AnyUrl, BaseModel, DirectoryPath, Field,
                       NonNegativeFloat, NonNegativeInt, PositiveFloat,
                       PositiveInt, StrBytes, constr, parse_obj_as)
 
+from common.datatype import (BoolEnum, ClusterMode, DsAppType, EncodeType,
+                             ModelColorFormat, NetworkMode, NetworkType,
+                             ProcessMode, TensorDataType)
 
-class DsAppType(str, Enum):
-    DEFAULT = "NORMAL"
-    NORMAL = "NORMAL"
-    VISUAL = "VISUAL"
-    DEBUG = "VISUAL"
 
-# 
 class DsAppConfig(BaseModel):
     """Config for deepstream app"""
 
@@ -31,10 +28,6 @@ class DsAppConfig(BaseModel):
     streammux_buffer_pool: PositiveInt = 40
     streammux_nvbuf_memory_type: NonNegativeInt = 3
     face_confidence_threshold: PositiveFloat = 0.45
-
-
-class EncodeType(str, Enum):
-    H265 = "h265"
 
 
 class SingleSourceConfig(BaseModel):
@@ -52,43 +45,6 @@ class SourcesConfig(BaseModel):
     """
 
     sources: List[SingleSourceConfig] = Field([], description="list of information of all rtsp streams")
-
-
-class NetworkMode(IntEnum):
-    FP32 = 0
-    INT8 = 1
-    FP16 = 2
-
-
-class ProcessMode(IntEnum):
-    PRIMARY = 1
-    SECONDARY = 2
-
-
-class NetworkType(IntEnum):
-    DETECTOR = 0
-    CLASSIFIER = 1
-    SEGMENTATION = 2
-    INSTANCE_SEGMENTATION = 3
-
-
-class ClusterMode(IntEnum):
-    GROUP_RECTANGLE = 0
-    DBSCAN = 1
-    NMS = 2
-    DBSCAN_NMS = 3
-    NONE = 4
-
-
-class ModelColorFormat(IntEnum):
-    RGB = 0
-    BGR = 1
-    GRAY = 2
-
-
-class BoolEnum(IntEnum):
-    FALSE = 0
-    TRUE = 1
 
 
 class NVinferConfig(BaseModel):
@@ -210,15 +166,6 @@ class FACE_sgie_config(SGIEConfig):
     gie_unique_id: NonNegativeInt = Field(4, const=True)
     output_tensor_meta: NonNegativeInt = Field(1, const=True)
     cluster_mode: ClusterMode = Field(ClusterMode.NONE, const=True)
-
-
-class TensorDataType(IntEnum):
-    FP32 = 0
-    UINT8 = 1
-    INT8 = 2
-    UINT32 = 3
-    INT32 = 4
-    FP16 = 5
 
 
 class FACE_align_config(BaseModel):

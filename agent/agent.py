@@ -15,7 +15,7 @@ from pydantic import parse_obj_as, parse_raw_as
 from pydantic import UUID4
 from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                  DsInstance, TOPIC210Model)
+                                  DsInstance, TOPIC210Model, Topic200Model)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -90,7 +90,7 @@ def create_container(name: str, config: DsInstanceConfig):
                                        detach=True)
     LOGGER.info(f"Creating container {name} ... DONE")
     LOGGER.info(f"Waiting for container {name} to run")
-
+    
     start = time.time()
     end = time.time()
     while DOCKER_CLIENT.containers.get(name).status != 'running' and (end - start) < 120:
@@ -103,9 +103,13 @@ def delete_container(container: Container):
     container.stop()
     container.remove()
     LOGGER.info(f"Deleted container {container.name} - ({container.id})")
-    
 
+def create_TOPIC200():
+    hostname = socket.gethostname()
+    
 def consume():
+    PRODUCER.poll(0)
+    
     while RUNNING:
         local_configs = {}
         containers = {}
@@ -125,10 +129,10 @@ def consume():
         if msg.topic() == TOPIC210:
             data = parse_raw_as(TOPIC210Model, msg.value())    
             hostname = socket.gethostname()
-            machine_id = UUID4(utils.get_hardware_id())
+            node_id = UUID4(utils.get_hardware_id())
             server_config = {}
             for machine in data.agent_info_list:
-                if machine.node_id == machine_id and machine.hostname == hostname:
+                if machine.node_id == node_id and machine.hostname == hostname:
                     for instance in machine.node_config_list:
                         server_config[instance.name] = instance.config
                     for container_name in set(local_configs) - set(server_config):

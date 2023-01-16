@@ -5,6 +5,7 @@ import subprocess
 from time import sleep
 
 from confluent_kafka import Producer
+from pydantic import UUID4, IPvAnyAddress
 
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
@@ -13,7 +14,6 @@ from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    SourcesConfig, parse_txt_as)
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
                                   DsInstance, NodeInfo, TOPIC210Model)
-from pydantic import UUID4, IPvAnyAddress
 
 BOOTSTRAP_SERVER = "172.21.100.242:9092"
 
@@ -78,9 +78,9 @@ def create_sample_TOPIC210():
     deepstream_instance_info_list.append(DsInstance(name="deepstream-2", config=instance_config))
     
     hostname = socket.gethostname()
-    machine_id = UUID4(get_hardware_id())
+    node_id = UUID4(get_hardware_id())
     return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname,
-                                                node_id=machine_id,
+                                                node_id=node_id,
                                                 node_config_list=deepstream_instance_info_list)])
 
 def produce():
