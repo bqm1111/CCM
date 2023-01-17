@@ -11,7 +11,7 @@ import logging
 import logging.config
 import docker
 from docker.models.containers import Container
-
+import netifaces
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
@@ -119,6 +119,13 @@ def create_archive(file):
     pw_tarstream.seek(0)
     return pw_tarstream
 
+def has_ip_address(ip_address: str):
+    for interface in netifaces.interfaces():
+        ip_data = netifaces.ifaddresses(interface)
+        if netifaces.AF_INET in ip_data.keys():
+            if ip_data[netifaces.AF_INET][0]['addr'] == ip_address:
+                return True
+    return False
 
 if __name__ == "__main__":
     image_name = 'deepstream-app'

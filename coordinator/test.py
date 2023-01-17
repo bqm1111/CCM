@@ -1,9 +1,6 @@
 import socket
-
-hostname = socket.gethostname()
-ip_address = socket.gethostbyname(hostname)
-print(hostname)
-print(ip_address)
-
-print(socket.gethostbyname("dat.local"))
-print(socket.gethostbyname("x1server.local"))
+import netifaces
+import agent.utils as utils
+# print(netifaces.ifaddresses('usb0'))
+print(utils.has_ip_address("172.21.100.242"))
+print(utils.has_ip_address("172.21.100.243"))

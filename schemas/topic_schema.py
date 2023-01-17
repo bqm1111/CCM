@@ -1,9 +1,10 @@
-from typing import List
+import subprocess
+from typing import List, Optional
 
-from pydantic import UUID4, BaseModel, Field, IPvAnyAddress, NonNegativeInt
+from pydantic import UUID4, BaseModel, Field, IPvAnyAddress, NonNegativeInt, IPvAnyAddress
 
 from schemas.config_schema import DsInstanceConfig
-import subprocess
+
 TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
@@ -25,21 +26,20 @@ class InstanceStatus(BaseModel):
 class Topic200Model(BaseModel):
     """greeting from Agent to Coordinator"""
 
-    message_id: UUID4
+    node_id: UUID4
     hostname: str
-    capacity: NonNegativeInt = Field(description="number of camera this machine can handle")
-    gpulist: List[str]
-    description: str = ""
+    ip_address: IPvAnyAddress
+    capacity: Optional[NonNegativeInt] = Field(description="number of camera this machine can handle")
+    gpulist: Optional[List[str]]
+    description: Optional[str] = ""
     class Config:
         title = "AgentInfo"
 
 
 class Topic201Model(BaseModel):
     """response from Coordianator to Agent"""
-
-    message_id: UUID4
     agent_name: str
-    agent_id: UUID4  # Agent must save its id
+    ip_address: IPvAnyAddress
     class Config:
         title = "AgentCommand"
 

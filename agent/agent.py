@@ -15,7 +15,7 @@ from pydantic import parse_obj_as, parse_raw_as
 from pydantic import UUID4
 from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                  DsInstance, TOPIC210Model, Topic200Model)
+                                  DsInstance, TOPIC210Model, Topic200Model, Topic201Model, Topic220Model)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -121,6 +121,7 @@ def consume():
                     continue
                 local_configs[_id] = _config
         msg = CONSUMER.poll(1)
+        # print(local_configs.keys())
         if msg is None:
             continue
         if msg.error():
@@ -144,9 +145,16 @@ def consume():
                     for container_name in set(local_configs) & set(server_config):
                         update_container(container_name, server_config[container_name], local_configs[container_name])
                         
-            
+
         if msg.topic() == TOPIC201:
-            LOGGER.info("Hearing from topic201")
+            data = parse_raw_as(Topic201Model, msg.value())
+            if utils.has_ip_address(str(data.ip_address)):
+                LOGGER.info("Sending TOPIC200")
+                hostname = socket.gethostname()
+                node_id = UUID4(utils.get_hardware_id())
+                PRODUCER.poll(0)
+                topic200data = Topic200Model(node_id=node_id, hostname=hostname, ip_address=str(data.ip_address))
+                PRODUCER.produce(TOPIC200, topic200data.json())
 
 
 def main():
