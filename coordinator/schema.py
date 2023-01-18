@@ -1,26 +1,6 @@
+from typing import Optional
+
 from pydantic import BaseModel
-from pydantic.typing import List
-
-from common.datatype import EncodeType, SourceType
-
-
-class CameraAgentBase(BaseModel):
-    camera_id: int
-    agent_id: int     
-    class Config:
-        orm_mode = True
-
-class CameraInstanceBase(BaseModel):
-    camera_id: int
-    instance_id: int     
-    class Config:
-        orm_mode = True
-        
-class AgentInstanceBase(BaseModel):
-    instance_id: int
-    agent_id: int     
-    class Config:
-        orm_mode = True
 
 
 class AgentCreate(BaseModel):
@@ -48,6 +28,8 @@ class CameraCreate(BaseModel):
     
 class CameraBase(CameraCreate):
     id: int
+    agent_id: Optional[int]
+    dsInstance_id: Optional[int]
     class Config:
         orm_mode = True
 
@@ -67,13 +49,6 @@ class DsInstanceCreate(BaseModel):
 
 class DsInstanceBase(DsInstanceCreate):
     id: int
+    agent_id: Optional[int]
     class Config:
         orm_mode = True
-
-
-
-class CameraSchema(CameraBase):
-    agents: List[AgentBase]
-
-class AgentSchema(AgentBase):
-    camera: List[CameraBase]

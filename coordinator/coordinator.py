@@ -5,6 +5,8 @@ import logging.config
 import os
 import socket
 import subprocess
+import urllib
+import uuid
 from time import sleep
 
 import models
@@ -12,6 +14,7 @@ from confluent_kafka import Consumer, Producer
 from database import Base, SessionLocal, engine
 from pydantic import UUID4, IPvAnyAddress, parse_raw_as
 from sqlalchemy.orm import joinedload
+
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
@@ -92,7 +95,6 @@ def create_sample_TOPIC210():
     app_conf = DsAppConfig.parse_obj(appconfig)
     source_conf = SourcesConfig(sources=source_list)
 
-
     instance_config = DsInstanceConfig(appconfig=app_conf, 
                                     sourceconfig=source_conf,
                                     face_pgie=face_pgie_conf,
@@ -111,17 +113,72 @@ def create_sample_TOPIC210():
                                                 node_config_list=deepstream_instance_info_list)])
 
 def generate_new_configuration():
-    for agent in DATABASE.query(models.Agent).options(joinedload(models.Agent.camera)).all():
-        pass
+    agent_info_list = []
+    for agent in DATABASE.query(models.Agent).options(joinedload(models.Agent.dsInstance)).all():
+        if not agent.connected:
+            continue
+        hostname = agent.hostname
+        node_id = uuid.UUID(agent.node_id)
+        instance_info_list = []
+        print(agent.dsInstance)
+        for dsInstance in agent.dsInstance:
+            cameras = DATABASE.query(models.Camera).where(models.Camera.dsInstance_id == dsInstance.id).all()
+            source_list = []
+            for camera in cameras:
+                cam = DATABASE.query(models.Camera).get(camera.camera_id)
+                url_password = urllib.parse.quote_plus(cam.password)
+                rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
+                source = dict()
+                source["camera_id"] = cam.camera_id
+                source["address"] = rtsp_address
+                source["encode_type"] = cam.encodeType
+                source["type"] = cam.type
+                source_list.append(SingleSourceConfig.parse_obj(source))
+            source_conf = SourcesConfig(sources=source_list)
+            app_config = dsInstance.to_app_conf_dict()
+            app_conf = DsAppConfig.parse_obj(app_config)
+            
+            with open("../sample_configs/faceid_primary.txt") as f:
+                face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
+            with open("../sample_configs/mot_primary.txt") as f:
+                mot_pgie_json, _ = parse_txt_as(MOT_pgie_config, f.read())
+
+            with open("../sample_configs/faceid_secondary.txt") as f:
+                face_sgie_json, _ = parse_txt_as(FACE_sgie_config, f.read())
+
+            with open("../sample_configs/mot_sgie.txt") as f:
+                mot_sgie_json, _ = parse_txt_as(MOT_sgie_config, f.read())
+
+            with open("../sample_configs/faceid_align_config.txt") as f:
+                face_align_json, _ = parse_txt_as(FACE_align_config, f.read())
+            
+            face_pgie_conf = FACE_pgie_config.parse_obj(face_pgie_json)
+            face_sgie_conf = FACE_sgie_config.parse_obj(face_sgie_json)
+            face_align_conf = FACE_align_config.parse_obj(face_align_json)
+            mot_pgie_conf = MOT_pgie_config.parse_obj(mot_pgie_json)
+            mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
+            instance_config = DsInstanceConfig(appconfig=app_conf, 
+                                    sourceconfig=source_conf,
+                                    face_pgie=face_pgie_conf,
+                                    face_sgie=face_sgie_conf,
+                                    face_align=face_align_conf,
+                                    mot_pgie=mot_pgie_conf,
+                                    mot_sgie=mot_sgie_conf)
+            
+            instance_info_list.append(DsInstance(name=dsInstance.instance_name,
+                                                 config=instance_config))
+            print(instance_info_list)
+        agent_info_list.append(NodeInfo(hostname=hostname,
+                                        node_id=node_id,
+                                        node_config_list=instance_info_list))
+    return TOPIC210Model(agent_info_list=agent_info_list)
+
+def update_configuration():
+    topic210data = generate_new_configuration()
+    PRODUCER.produce(TOPIC210, topic210data.json())
 
 def produce():
     while RUNNING:
-        # # Trigger any available delivery report callbacks from previous produce() calls
-        # PRODUCER.poll(0)
-        # topic210data = create_sample_TOPIC210()
-        # print(f"sending data: {topic210data.agent_info_list[0]}")
-        # PRODUCER.produce(TOPIC210, topic210data.json(), callback=delivery_report)
-
         # Query from database and send message to all computers whose IPs are listed in the database(TOPIC201)
         all_agents = DATABASE.query(models.Agent).all()
         for agent in all_agents:
@@ -141,6 +198,7 @@ def produce():
             
             agent.hostname = data.hostname
             agent.node_id = str(data.node_id)
+            agent.connected = True
             DATABASE.commit()            
         if msg.topic() == TOPIC220:
             pass

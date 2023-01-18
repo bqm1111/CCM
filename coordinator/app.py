@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from flask import jsonify
 from pydantic.typing import List
 from sqlalchemy import and_
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from sqlalchemy.orm import Session, joinedload
 
 Base.metadata.create_all(engine)
@@ -20,18 +21,6 @@ def get_db():
         db.close()
 
 ############################### CAMERA ############################################################
-@app.get("/Cameras/{id}", response_model=schema.CameraSchema)
-async def get_Camera(id: int, db: Session = Depends(get_db)):
-    db_Camera = db.query(models.Camera).options(joinedload(models.Camera.agents)).\
-        where(models.Camera.id == id).one()
-    return db_Camera
-
-
-@app.get("/Cameras", response_model=List[schema.CameraSchema])
-async def get_Cameras(db: Session = Depends(get_db)):
-    db_Cameras = db.query(models.Camera).options(joinedload(models.Camera.agents)).all()
-    return db_Cameras
-
 @app.post("/Cameras", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
 async def add_camera(cameraInfo: schema.CameraCreate, db: Session = Depends(get_db)):
     new_camera = models.Camera(ip_address = cameraInfo.ip_address, 
@@ -76,14 +65,6 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     camera = session.query(models.Camera).get(id)
 
     if camera:
-        camera_agent = session.query(models.CameraAgent).where(models.CameraAgent.camera_id == camera.id).all()
-        for ca in camera_agent:
-            session.delete(ca)
-            session.commit()
-        camera_instance = session.query(models.CameraInstance).where(models.CameraInstance.camera_id == camera.id).all()
-        for ci in camera_instance:
-            session.delete(ci)
-            session.commit()
         session.delete(camera)
         session.commit()
     else:
@@ -92,19 +73,6 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     return None
 
 ############################### AGENT ############################################################
-
-@app.get("/Agents/{id}", response_model=schema.AgentSchema)
-async def get_Agent(id: int, db: Session = Depends(get_db)):
-    db_Agent = db.query(models.Agent).options(joinedload(models.Agent.camera)).\
-        where(models.Agent.id == id).one()
-    return db_Agent
-
-
-@app.get("/Agents", response_model=List[schema.AgentSchema])
-async def get_Agents(db: Session = Depends(get_db)):
-    db_Agents = db.query(models.Agent).options(joinedload(models.Agent.camera)).all()
-    return db_Agents
-
 @app.post("/Agents", response_model=schema.AgentBase, status_code=status.HTTP_201_CREATED)
 async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
     new_agent = models.Agent(ip_address=agentInfo.ip_address,
@@ -141,15 +109,6 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     agent = session.query(models.Agent).get(id)
 
     if agent:
-        camera_agent = session.query(models.CameraAgent).where(models.CameraAgent.agent_id == agent.id).all()
-        for ca in camera_agent:
-            session.delete(ca)
-            session.commit()
-        agent_instance = session.query(models.AgentInstance).where(models.AgentInstance.agent_id == agent.id).all()
-        for ai in agent_instance:
-            session.delete(ai)
-            session.commit()
-
         session.delete(agent)
         session.commit()
     else:
@@ -210,16 +169,6 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     instance = session.query(models.DsInstance).get(id)
 
     if instance:
-        agent_instance = session.query(models.AgentInstance).where(models.AgentInstance.instance_id == instance.id).all()
-        for ai in agent_instance:
-            session.delete(ai)
-            session.commit()
-            
-        camera_instance = session.query(models.CameraInstance).where(models.CameraInstance.instance_id == instance.id).all()
-        for ci in camera_instance:
-            session.delete(ci)
-            session.commit()
-
         session.delete(instance)
         session.commit()
     else:
@@ -230,96 +179,75 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
 
 ############################### CAMERA_AGENT ############################################################
 
-@app.post("/Camera_Agents", response_model=schema.CameraAgentBase, status_code=status.HTTP_201_CREATED)
+@app.put("/Camera_Agents", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
 async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Session = Depends(get_db)):
+    try:
+        agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple Agent item with ip_address {agent_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"Agent item with ip_address {agent_ip} not found")
     
-    agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
-    camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
-    
-    camera_agent = models.CameraAgent(camera_id=camera.id, agent_id=agent.id)
-    db.add(camera_agent)
+    try:        
+        camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple camera item with ip_address {camera_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"camera item with ip_address {camera_ip} not found")
+
+    camera.agent_id = agent.id
     db.commit()
-    db.refresh(camera_agent)
-    db.close()
     
-    return camera_agent
-
-@app.delete("/Camera_Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camera_agent_association(agent_id: int, camera_id: int, session: Session = Depends(get_db)):
-
-    camera_agent = session.query(models.CameraAgent).where(and_(
-                                                            models.CameraAgent.agent_id == agent_id,
-                                                            models.CameraAgent.camera_id == camera_id)).one()
-
-    if camera_agent:
-        session.delete(camera_agent)
-        session.commit()
-    else:
-        raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-
-    return None
+    return camera
 
 ############################### CAMERA_INSTANCE ############################################################
 
-@app.post("/Camera_Instance", response_model=schema.CameraInstanceBase, status_code=status.HTTP_201_CREATED)
-async def add_camera_instance_association(agent_ip: str, camera_ip: str, db: Session = Depends(get_db)):
+@app.put("/Camera_Instance", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
+async def add_camera_instance_association(instance_name: str, camera_ip: str, db: Session = Depends(get_db)):
     
-    agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
-    camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    try:
+        dsInstance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple DsInstance item with name {instance_name} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"DsInstance item with name {instance_name} not found")
     
-    camera_agent = models.CameraAgent(camera_id=camera.id, agent_id=agent.id)
-    db.add(camera_agent)
+    try:        
+        camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple camera item with ip_address {camera_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"camera item with ip_address {camera_ip} not found")
+    
+    camera.dsInstance_id = dsInstance.id
     db.commit()
-    db.refresh(camera_agent)
     db.close()
     
-    return camera_agent
-
-@app.delete("/Camera_Instance/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camera_instance_association(agent_id: int, camera_id: int, session: Session = Depends(get_db)):
-
-    camera_agent = session.query(models.CameraAgent).where(and_(
-                                                            models.CameraAgent.agent_id == agent_id,
-                                                            models.CameraAgent.camera_id == camera_id)).one()
-
-    if camera_agent:
-        session.delete(camera_agent)
-        session.commit()
-    else:
-        raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-
-    return None
+    return camera
 
 ############################### AGENT_INSTANCE ############################################################
 
-@app.post("/Camera_Agents", response_model=schema.CameraAgentBase, status_code=status.HTTP_201_CREATED)
-async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Session = Depends(get_db)):
+@app.put("/Agent_Instance", response_model=schema.DsInstanceBase, status_code=status.HTTP_201_CREATED)
+async def add_agent_instance_association(agent_ip: str, instance_name: str, db: Session = Depends(get_db)):
+    try:
+        agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple Agent item with ip_address {agent_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"Agent item with ip_address {agent_ip} not found")
     
-    agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
-    camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    try:
+        dsInstance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple DsInstance item with name {instance_name} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"DsInstance item with name {instance_name} not found")
     
-    camera_agent = models.CameraAgent(camera_id=camera.id, agent_id=agent.id)
-    db.add(camera_agent)
+    dsInstance.agent_id = agent.id
     db.commit()
-    db.refresh(camera_agent)
     db.close()
     
-    return camera_agent
-
-@app.delete("/Camera_Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camera_agent_association(agent_id: int, camera_id: int, session: Session = Depends(get_db)):
-
-    # camera_agent = session.query(models.CameraAgent).where(and_(
-    #                                                         models.CameraAgent.agent_id == agent_id,
-    #                                                         models.CameraAgent.camera_id == camera_id)).one()
-
-    # if camera_agent:
-    #     session.delete(camera_agent)
-    #     session.commit()
-    # else:
-    #     raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-
-    return None
+    return dsInstance
 
 
 def create_sample_database(db: Session):
@@ -332,7 +260,35 @@ def create_sample_database(db: Session):
     camera4 = models.Camera(camera_id=4, ip_address="172.21.104.112", username="admin", 
                             password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
     
-    data = [camera1, camera2, camera3, camera4]
+    agent1 = models.Agent(agent_name="VTX", ip_address="172.21.100.242")
+    agent2 = models.Agent(agent_name="VHT", ip_address="172.21.100.167")
+    
+    dsInstance1 = models.DsInstance(instance_name="deepstream-VTX", 
+                                   app_type="NORMAL",
+                                   face_raw_meta_topic="RawFaceMeta",
+                                   mot_raw_meta_topic="RawMotMeta",
+                                   visual_topic="RawImage",
+                                   kafka_connection_str="172.21.100.242:9092",
+                                   streammux_output_width=3840,
+                                   streammux_output_height=2160,
+                                   streammux_batch_size=4,
+                                   streammux_buffer_pool=40,
+                                   streammux_nvbuf_memory_type=3,
+                                   face_confidence_threshold=0.1)
+    dsInstance2 = models.DsInstance(instance_name="deepstream-VHT", 
+                                   app_type="NORMAL",
+                                   face_raw_meta_topic="RawFaceMeta",
+                                   mot_raw_meta_topic="RawMotMeta",
+                                   visual_topic="RawImage",
+                                   kafka_connection_str="172.21.100.242:9092",
+                                   streammux_output_width=3840,
+                                   streammux_output_height=2160,
+                                   streammux_batch_size=4,
+                                   streammux_buffer_pool=40,
+                                   streammux_nvbuf_memory_type=3,
+                                   face_confidence_threshold=0.1)
+
+    data = [camera1, camera2, camera3, camera4, agent1, agent2, dsInstance1, dsInstance2]
     for cam in data:
         db.add(cam)
         db.commit()
@@ -343,21 +299,74 @@ def create_sample_database(db: Session):
 if __name__ == '__main__':
     db = Session(bind=engine)
     # create_sample_database(db)  
-    from schemas.config_schema import SingleSourceConfig, SourcesConfig
+    from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
+                                   FACE_align_config, FACE_pgie_config,
+                                   FACE_sgie_config, MOT_pgie_config,
+                                   MOT_sgie_config, SingleSourceConfig,
+                                   SourcesConfig, parse_txt_as)
+    from schemas.topic_schema import NodeInfo, DsInstance
+    from pydantic import UUID4
+    import json, uuid
     agent_info_list = []
-    for agent in db.query(models.Agent).options(joinedload(models.Agent.camera)).all():
-        source_list = []
+    for agent in db.query(models.Agent).options(joinedload(models.Agent.dsInstance)).all():
+        if not agent.connected:
+            continue
         hostname = agent.hostname
-        for camera in agent.camera:
-            cam = db.query(models.Camera).get(camera.camera_id)
-            url_password = urllib.parse.quote_plus(cam.password)
-            rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
-            source = dict()
-            source["camera_id"] = cam.camera_id
-            source["address"] = rtsp_address
-            source["encode_type"] = cam.encode_type
-            source["type"] = cam.type
-            source_list.append(SingleSourceConfig.parse_obj(source))
-        source_conf = SourcesConfig(sources=source_list)
+        node_id = uuid.UUID(agent.node_id)
+        instance_info_list = []
+        for dsInstance in agent.dsInstance:
+            cameras = db.query(models.Camera).where(models.Camera.dsInstance_id == dsInstance.id).all()
+            source_list = []
+            for camera in cameras:
+                cam = db.query(models.Camera).get(camera.camera_id)
+                url_password = urllib.parse.quote_plus(cam.password)
+                rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
+                source = dict()
+                source["camera_id"] = cam.camera_id
+                source["address"] = rtsp_address
+                source["encode_type"] = cam.encodeType
+                source["type"] = cam.type
+                source_list.append(SingleSourceConfig.parse_obj(source))
+            source_conf = SourcesConfig(sources=source_list)
+            app_config = dsInstance.to_app_conf_dict()
+            app_conf = DsAppConfig.parse_obj(app_config)
+            
+            with open("../sample_configs/faceid_primary.txt") as f:
+                face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
+            with open("../sample_configs/mot_primary.txt") as f:
+                mot_pgie_json, _ = parse_txt_as(MOT_pgie_config, f.read())
 
+            with open("../sample_configs/faceid_secondary.txt") as f:
+                face_sgie_json, _ = parse_txt_as(FACE_sgie_config, f.read())
 
+            with open("../sample_configs/mot_sgie.txt") as f:
+                mot_sgie_json, _ = parse_txt_as(MOT_sgie_config, f.read())
+
+            with open("../sample_configs/faceid_align_config.txt") as f:
+                face_align_json, _ = parse_txt_as(FACE_align_config, f.read())
+            
+            face_pgie_conf = FACE_pgie_config.parse_obj(face_pgie_json)
+            face_sgie_conf = FACE_sgie_config.parse_obj(face_sgie_json)
+            face_align_conf = FACE_align_config.parse_obj(face_align_json)
+            mot_pgie_conf = MOT_pgie_config.parse_obj(mot_pgie_json)
+            mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
+            instance_config = DsInstanceConfig(appconfig=app_conf, 
+                                    sourceconfig=source_conf,
+                                    face_pgie=face_pgie_conf,
+                                    face_sgie=face_sgie_conf,
+                                    face_align=face_align_conf,
+                                    mot_pgie=mot_pgie_conf,
+                                    mot_sgie=mot_sgie_conf)
+            
+            instance_info_list.append(DsInstance(name=dsInstance.instance_name,
+                                                 config=instance_config))
+            print(instance_info_list)
+        agent_info_list.append(NodeInfo(hostname=hostname,
+                                        node_id=node_id,
+                                        node_config_list=instance_info_list))
+    
+    print((agent_info_list[0].node_config_list))
+
+        
+    
+    

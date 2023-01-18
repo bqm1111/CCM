@@ -11,11 +11,12 @@ import utils
 from confluent_kafka import Consumer, Message, Producer
 from docker.models.containers import Container
 from dynaconf import Dynaconf
-from pydantic import parse_obj_as, parse_raw_as
-from pydantic import UUID4
+from pydantic import UUID4, parse_obj_as, parse_raw_as
+
 from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                  DsInstance, TOPIC210Model, Topic200Model, Topic201Model, Topic220Model)
+                                  DsInstance, Topic200Model, Topic201Model,
+                                  TOPIC210Model, Topic220Model)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -33,7 +34,7 @@ CONSUMER = Consumer(
         "enable.auto.commit": "true",
         # Autocommit every 2 seconds. If a message isn't be matched in within 2 seconds, it should be ignore anyway
         # 'auto.commit.interval.ms': 2000,
-        "group.id": "matchergroup",
+        "group.id": "abcdefatljkasdlfjkaldfkj",
     }
 )
 
@@ -45,18 +46,16 @@ PRODUCER = Producer({"bootstrap.servers": BOOTSTRAP_SERVER})
 IMAGE_NAME = settings.IMAGE_NAME
 DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
-
 containers = DOCKER_CLIENT.containers.list()
-# image = DOCKER_CLIENT.images.pull(IMAGE_NAME, settings.IMAGE_TAG)
 RUNNING = True
-def update_container(name: str, server_config: DsInstanceConfig, local_config: DsInstanceConfig):
+
+def update_container(container: Container, server_config: DsInstanceConfig, local_config: DsInstanceConfig):
     # Check if server config and local config are identical
-    container = DOCKER_CLIENT.containers.get(name)
     if container.status == 'running':
         if server_config != local_config:
             LOGGER.info(f"Config in container {container.name} changed !!!!!!!!!!")
         # Update local config if there are differences
-            path = os.path.join("../configs/", name)
+            path = os.path.join("../configs/", container.name)
             write_config(path, server_config)
             LOGGER.info(f"Changing config of container {container.name}")
             utils.copy_to_container(container, path, "/workspace/configs")
@@ -77,7 +76,6 @@ def create_container(name: str, config: DsInstanceConfig):
     # Run container with mounted config
     LOGGER.info(f"Creating container {name}")
     container_engine_volume = name + "_engine"
-    container_config_volume = name + "_config"
 
     DOCKER_CLIENT.containers.run(image=IMAGE_NAME,
                                        name=name,
@@ -104,13 +102,18 @@ def delete_container(container: Container):
     container.remove()
     LOGGER.info(f"Deleted container {container.name} - ({container.id})")
 
-def create_TOPIC200():
-    hostname = socket.gethostname()
     
 def consume():
-    PRODUCER.poll(0)
-    
+    global RUNNING    
     while RUNNING:
+        msg = CONSUMER.poll(1)
+        # print(local_configs.keys())
+        if msg is None:
+            print('.', end='', flush=True)
+            continue
+        if msg.error():
+            LOGGER.error(f"Consumer error: {msg.error()}")
+            
         local_configs = {}
         containers = {}
         for _container in DOCKER_CLIENT.containers.list(all=True):
@@ -120,12 +123,6 @@ def consume():
                 if _id is None:
                     continue
                 local_configs[_id] = _config
-        msg = CONSUMER.poll(1)
-        # print(local_configs.keys())
-        if msg is None:
-            continue
-        if msg.error():
-            LOGGER.error(f"Consumer error: {msg.error()}")
 
         if msg.topic() == TOPIC210:
             data = parse_raw_as(TOPIC210Model, msg.value())    
@@ -143,9 +140,9 @@ def consume():
                         create_container(container_name, server_config[container_name])
                         
                     for container_name in set(local_configs) & set(server_config):
-                        update_container(container_name, server_config[container_name], local_configs[container_name])
-                        
+                        update_container(containers[container_name], server_config[container_name], local_configs[container_name])
 
+                        
         if msg.topic() == TOPIC201:
             data = parse_raw_as(Topic201Model, msg.value())
             if utils.has_ip_address(str(data.ip_address)):
@@ -158,10 +155,13 @@ def consume():
 
 
 def main():
-    """main function to be call"""
     try:
         consume()
     except KeyboardInterrupt:
+        import sys
+        PRODUCER.flush()
+        CONSUMER.close()
+        sys.exit()
         global RUNNING
         RUNNING = False
         LOGGER.info("gracefully close consumers and flush producer")
@@ -171,4 +171,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    try:
+        while RUNNING:
+            print('.', end='', flush=True)
+    except KeyboardInterrupt:
+        print("here")
+        RUNNING=False
+        PRODUCER.flush()
+        CONSUMER.close()
