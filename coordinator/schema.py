@@ -46,6 +46,7 @@ class DsInstanceCreate(BaseModel):
     streammux_buffer_pool: int 
     streammux_nvbuf_memory_type: int
     face_confidence_threshold: float
+    status: str
 
 class DsInstanceBase(DsInstanceCreate):
     id: int

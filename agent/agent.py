@@ -16,7 +16,7 @@ from pydantic import UUID4, parse_obj_as, parse_raw_as
 from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
 from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
                                   DsInstance, Topic200Model, Topic201Model,
-                                  TOPIC210Model, Topic220Model)
+                                  TOPIC210Model, Topic220Model, InstanceStatus)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -25,8 +25,7 @@ logging.getLogger("docker").setLevel(logging.WARNING)
 logging.config.fileConfig(log_config, disable_existing_loggers=False)
 LOGGER = logging.getLogger(__file__)
 
-# TODO: Remove hard code the address of bootstrap server
-BOOTSTRAP_SERVER = "172.21.100.242:9092"
+BOOTSTRAP_SERVER = settings.BOOTSTRAP_SERVER
 CONSUMER = Consumer(
     {
         "bootstrap.servers": BOOTSTRAP_SERVER,
@@ -34,7 +33,7 @@ CONSUMER = Consumer(
         "enable.auto.commit": "true",
         # Autocommit every 2 seconds. If a message isn't be matched in within 2 seconds, it should be ignore anyway
         # 'auto.commit.interval.ms': 2000,
-        "group.id": "abcdefatljkasdlfjkaldfkj",
+        "group.id": "coordinator",
     }
 )
 
@@ -101,11 +100,26 @@ def delete_container(container: Container):
     container.stop()
     container.remove()
     LOGGER.info(f"Deleted container {container.name} - ({container.id})")
-
+    
     
 def consume():
-    global RUNNING    
+    global RUNNING
+    start = time.time()    
     while RUNNING:
+        current = time.time()
+        if current - start > settings.check_container_status_interval:
+            print("sending TOPIC220")
+            start = current
+            agent_states = []
+            for _container in DOCKER_CLIENT.containers.list(all=True):
+                if _container.attrs['Config']['Image'] == IMAGE_NAME:
+                    # print(_container.attrs["State"])
+                    agent_states.append(InstanceStatus(instance_name=_container.name, state=_container.attrs["State"]["Status"]))
+            
+            if len(agent_states) > 0:
+                PRODUCER.poll(0)
+                PRODUCER.produce(TOPIC220, Topic220Model(node_id=UUID4(utils.get_hardware_id()), status=agent_states).json())
+
         msg = CONSUMER.poll(1)
         # print(local_configs.keys())
         if msg is None:
@@ -123,7 +137,7 @@ def consume():
                 if _id is None:
                     continue
                 local_configs[_id] = _config
-
+        print(containers)
         if msg.topic() == TOPIC210:
             data = parse_raw_as(TOPIC210Model, msg.value())    
             hostname = socket.gethostname()
@@ -154,15 +168,13 @@ def consume():
                 PRODUCER.produce(TOPIC200, topic200data.json())
 
 
+
 def main():
     try:
         consume()
     except KeyboardInterrupt:
-        import sys
         PRODUCER.flush()
         CONSUMER.close()
-        sys.exit()
-        global RUNNING
         RUNNING = False
         LOGGER.info("gracefully close consumers and flush producer")
     finally:
@@ -171,12 +183,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    try:
-        while RUNNING:
-            print('.', end='', flush=True)
-    except KeyboardInterrupt:
-        print("here")
-        RUNNING=False
-        PRODUCER.flush()
-        CONSUMER.close()
+    main()

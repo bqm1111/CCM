@@ -1,8 +1,4 @@
 IMAGE_NAME = 'deepstream-app'
 IMAGE_TAG = 'latest'
-COORDINATOR_URI = "http://localhost:3001/api"
-
-# this machine configuration
-HOST_IP = "172.21.100.154"
-HOST_CAPACITY = 4
-HOST_DESC = "martin: minhbq6 machine"
+BOOTSTRAP_SERVER = '172.21.100.242:9092'
+check_container_status_interval = 5

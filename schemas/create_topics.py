@@ -7,6 +7,8 @@ TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
+TOPIC300 = "UpdateConfig"
+TOPIC301 = "Refresh"
 admin_client = AdminClient(
     {
         "bootstrap.servers": "172.21.100.242:9092",
@@ -18,6 +20,9 @@ topic_list: List[NewTopic] = [
     NewTopic(topic=TOPIC201, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC210, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC220, num_partitions=1, replication_factor=1),
+    NewTopic(topic=TOPIC300, num_partitions=1, replication_factor=1),
+    NewTopic(topic=TOPIC301, num_partitions=1, replication_factor=1)
+
 ]
 
 # validate before doing anything

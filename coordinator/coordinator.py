@@ -9,28 +9,34 @@ import urllib
 import uuid
 from time import sleep
 
+from dynaconf import Dynaconf
 import models
 from confluent_kafka import Consumer, Producer
 from database import Base, SessionLocal, engine
 from pydantic import UUID4, IPvAnyAddress, parse_raw_as
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy import and_
 
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
                                    MOT_sgie_config, SingleSourceConfig,
                                    SourcesConfig, parse_txt_as)
-from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
+from schemas.topic_schema import (TOPIC301,TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC300,
                                   DsInstance, NodeInfo, Topic200Model,
-                                  Topic201Model, TOPIC210Model, Topic220Model)
+                                  Topic201Model, TOPIC210Model, Topic220Model,
+                                  Topic300Model)
 
+settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
 
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("docker").setLevel(logging.WARNING)
 logging.config.fileConfig(log_config, disable_existing_loggers=False)
 LOGGER = logging.getLogger(__file__)
-BOOTSTRAP_SERVER = "172.21.100.242:9092"
+
+BOOTSTRAP_SERVER = settings.BOOTSTRAP_SERVER
 PRODUCER = Producer({'bootstrap.servers': BOOTSTRAP_SERVER})
 RUNNING = True
 CONSUMER = Consumer(
@@ -40,11 +46,11 @@ CONSUMER = Consumer(
         "enable.auto.commit": "true",
         # Autocommit every 2 seconds. If a message isn't be matched in within 2 seconds, it should be ignore anyway
         # 'auto.commit.interval.ms': 2000,
-        "group.id": "matchergroup",
+        "group.id": "coordinator",
     }
 )
 
-CONSUMER.subscribe([TOPIC200, TOPIC220])
+CONSUMER.subscribe([TOPIC200, TOPIC220, TOPIC300, TOPIC301])
 
 Base.metadata.create_all(engine)
 
@@ -113,6 +119,7 @@ def create_sample_TOPIC210():
                                                 node_config_list=deepstream_instance_info_list)])
 
 def generate_new_configuration():
+    LOGGER.info("Generating new configuration from database")
     agent_info_list = []
     for agent in DATABASE.query(models.Agent).options(joinedload(models.Agent.dsInstance)).all():
         if not agent.connected:
@@ -120,7 +127,6 @@ def generate_new_configuration():
         hostname = agent.hostname
         node_id = uuid.UUID(agent.node_id)
         instance_info_list = []
-        print(agent.dsInstance)
         for dsInstance in agent.dsInstance:
             cameras = DATABASE.query(models.Camera).where(models.Camera.dsInstance_id == dsInstance.id).all()
             source_list = []
@@ -167,7 +173,6 @@ def generate_new_configuration():
             
             instance_info_list.append(DsInstance(name=dsInstance.instance_name,
                                                  config=instance_config))
-            print(instance_info_list)
         agent_info_list.append(NodeInfo(hostname=hostname,
                                         node_id=node_id,
                                         node_config_list=instance_info_list))
@@ -179,13 +184,6 @@ def update_configuration():
 
 def produce():
     while RUNNING:
-        # Query from database and send message to all computers whose IPs are listed in the database(TOPIC201)
-        all_agents = DATABASE.query(models.Agent).all()
-        for agent in all_agents:
-            topic201data = create_TOPIC201(agent=agent, name="VTX")    
-            PRODUCER.poll(0)
-            PRODUCER.produce(TOPIC201, topic201data.json())
-
         msg = CONSUMER.poll(1)
         if msg is None:
             continue
@@ -199,9 +197,39 @@ def produce():
             agent.hostname = data.hostname
             agent.node_id = str(data.node_id)
             agent.connected = True
-            DATABASE.commit()            
+            DATABASE.commit()       
+                
         if msg.topic() == TOPIC220:
-            pass
+            data = parse_raw_as(Topic220Model, msg.value())
+            node_id = str(data.node_id)
+            try:
+                agent = DATABASE.query(models.Agent).where(models.Agent.node_id == node_id).one()
+            except NoResultFound:
+                LOGGER.warning(f"No agent with node_id {node_id} is found")
+            else:
+                status_list = data.status
+                for instance in status_list:
+                    try:
+                        dsInstance = DATABASE.query(models.DsInstance).where(and_(models.DsInstance.agent_id == agent.id,
+                                                                              models.DsInstance.instance_name == instance.instance_name)).one()
+                    except NoResultFound:
+                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} in agent {agent.agent_name} is found")
+                    else:
+                        dsInstance.status = instance.state
+                        DATABASE.commit()
+                        
+        if msg.topic() == TOPIC300:
+            update_configuration()
+            
+        if msg.topic() == TOPIC301:
+            # Query from database and send message to all computers whose IPs are listed in the database(TOPIC201)
+            all_agents = DATABASE.query(models.Agent).all()
+            for agent in all_agents:
+                topic201data = create_TOPIC201(agent=agent, name="VTX")    
+                PRODUCER.poll(0)
+                PRODUCER.produce(TOPIC201, topic201data.json())
+
+                
 
 def create_TOPIC201(agent: models.Agent, name: str):
     if not agent.agent_name:
@@ -223,5 +251,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

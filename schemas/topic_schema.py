@@ -9,7 +9,8 @@ TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
-
+TOPIC300 = "UpdateConfig"
+TOPIC301 = "Refresh"
 class DsInstance(BaseModel):
     name: str
     config: DsInstanceConfig
@@ -20,7 +21,8 @@ class NodeInfo(BaseModel):
     node_config_list: List[DsInstance]
 
 class InstanceStatus(BaseModel):
-    pass
+    instance_name: str
+    state: str
 
 
 class Topic200Model(BaseModel):
@@ -54,10 +56,22 @@ class TOPIC210Model(BaseModel):
 class Topic220Model(BaseModel):
     """update status of Agent to Coordinator"""
 
-    agent_id: UUID4
+    node_id: UUID4
     status: List[InstanceStatus]
     class Config:
         title = "AgentResponse"
+
+class Topic300Model(BaseModel):
+    """Read config from database and send to all agents"""
+    desc: str
+    class Config:
+        title = "UpdateConfig"
+
+class Topic301Model(BaseModel):
+    """Refresh"""
+    desc: str
+    class Config:
+        title = "Refresh"
 
 if __name__ == "__main__":
     p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
