@@ -21,7 +21,9 @@ topic_list: List[NewTopic] = [
     NewTopic(topic=TOPIC210, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC220, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC300, num_partitions=1, replication_factor=1),
-    NewTopic(topic=TOPIC301, num_partitions=1, replication_factor=1)
+    NewTopic(topic=TOPIC301, num_partitions=1, replication_factor=1),
+    NewTopic(topic="test_topic", num_partitions=1, replication_factor=1)
+
 
 ]
 

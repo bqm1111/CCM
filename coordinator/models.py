@@ -54,6 +54,7 @@ class DsInstance(Base):
     streammux_buffer_pool = Column(Integer, nullable=True)
     streammux_nvbuf_memory_type = Column(Integer, nullable=True)
     face_confidence_threshold = Column(Float, nullable=True)
+    mot_confidence_threshold = Column(Float, nullable=True)
     status = Column(String, nullable=True)
     camera = relationship("Camera", back_populates="dsInstance")
     agent = relationship("Agent", back_populates="dsInstance")
@@ -71,4 +72,5 @@ class DsInstance(Base):
         app_config["streammux_buffer_pool"] = self.streammux_buffer_pool
         app_config["streammux_nvbuf_memory_type"] = self.streammux_nvbuf_memory_type
         app_config["face_confidence_threshold"] = self.face_confidence_threshold
+        app_config["mot_confidence_threshold"] = self.mot_confidence_threshold
         return app_config

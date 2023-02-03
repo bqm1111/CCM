@@ -7,15 +7,14 @@ import socket
 import subprocess
 import urllib
 import uuid
-from time import sleep
 
 from dynaconf import Dynaconf
 import models
 from confluent_kafka import Consumer, Producer
 from database import Base, SessionLocal, engine
-from pydantic import UUID4, IPvAnyAddress, parse_raw_as
+from pydantic import UUID4, parse_raw_as
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy import and_
 
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
@@ -25,8 +24,8 @@ from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    SourcesConfig, parse_txt_as)
 from schemas.topic_schema import (TOPIC301,TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC300,
                                   DsInstance, NodeInfo, Topic200Model,
-                                  Topic201Model, TOPIC210Model, Topic220Model,
-                                  Topic300Model)
+                                  Topic201Model, TOPIC210Model, Topic220Model
+                                  )
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -78,7 +77,7 @@ def create_sample_TOPIC210():
     for cam in source_list_json["sources"]:
         source_list.append(SingleSourceConfig.parse_obj(cam))
 
-
+    
     with open("../sample_configs/faceid_primary.txt") as f:
         face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
     with open("../sample_configs/mot_primary.txt") as f:
@@ -120,22 +119,32 @@ def create_sample_TOPIC210():
 
 def generate_new_configuration():
     LOGGER.info("Generating new configuration from database")
+    DATABASE.flush()
+    
     agent_info_list = []
     for agent in DATABASE.query(models.Agent).options(joinedload(models.Agent.dsInstance)).all():
+        DATABASE.refresh(agent)
         if not agent.connected:
             continue
         hostname = agent.hostname
         node_id = uuid.UUID(agent.node_id)
         instance_info_list = []
+        
         for dsInstance in agent.dsInstance:
+            DATABASE.refresh(dsInstance)
             cameras = DATABASE.query(models.Camera).where(models.Camera.dsInstance_id == dsInstance.id).all()
             source_list = []
             for camera in cameras:
-                cam = DATABASE.query(models.Camera).get(camera.camera_id)
+                DATABASE.refresh(camera)
+                try:
+                    cam = DATABASE.query(models.Camera).where(models.Camera.camera_id == camera.camera_id).one()
+                except NoResultFound:
+                    LOGGER.warning(f"No camera with camera_id {camera.camera_id} in agent {agent.agent_name} is found")
+                
                 url_password = urllib.parse.quote_plus(cam.password)
                 rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
                 source = dict()
-                source["camera_id"] = cam.camera_id
+                source["camera_id"] = str(cam.camera_id)
                 source["address"] = rtsp_address
                 source["encode_type"] = cam.encodeType
                 source["type"] = cam.type
@@ -189,7 +198,7 @@ def produce():
             continue
         if msg.error():
             LOGGER.error(f"Consumer error")
-        
+
         if msg.topic() == TOPIC200:
             data = parse_raw_as(Topic200Model, msg.value())
             agent = DATABASE.query(models.Agent).where(models.Agent.ip_address == str(data.ip_address)).one()
@@ -205,7 +214,7 @@ def produce():
             try:
                 agent = DATABASE.query(models.Agent).where(models.Agent.node_id == node_id).one()
             except NoResultFound:
-                LOGGER.warning(f"No agent with node_id {node_id} is found")
+                LOGGER.warning(f"No agent with node_id {node_id} is found in database")
             else:
                 status_list = data.status
                 for instance in status_list:
@@ -213,7 +222,7 @@ def produce():
                         dsInstance = DATABASE.query(models.DsInstance).where(and_(models.DsInstance.agent_id == agent.id,
                                                                               models.DsInstance.instance_name == instance.instance_name)).one()
                     except NoResultFound:
-                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} in agent {agent.agent_name} is found")
+                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} in agent {agent.agent_name} is found in database")
                     else:
                         dsInstance.status = instance.state
                         DATABASE.commit()
@@ -247,7 +256,6 @@ def main():
         print("gracefully close consumers and flush producer")
     finally:
         PRODUCER.flush()
-
 
 if __name__ == "__main__":
     main()

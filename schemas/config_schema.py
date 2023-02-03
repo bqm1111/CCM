@@ -28,12 +28,13 @@ class DsAppConfig(BaseModel):
     streammux_buffer_pool: PositiveInt = 40
     streammux_nvbuf_memory_type: NonNegativeInt = 3
     face_confidence_threshold: PositiveFloat = 0.45
+    mot_confidence_threshold: PositiveFloat = 0.45
 
 
 class SingleSourceConfig(BaseModel):
     """properties of a single video source"""
 
-    camera_id: NonNegativeInt
+    camera_id: str
     address: AnyUrl
     encode_type: EncodeType = EncodeType.H265
     type: str = Field("rtsp", const=True)

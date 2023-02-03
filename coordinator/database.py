@@ -9,7 +9,6 @@ engine = create_engine("sqlite+pysqlite:///camera.db", future=True, echo=False,
 # Make the DeclarativeMeta
 Base = declarative_base()
 
-
 # Create SessionLocal class from sessionmaker factory
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 

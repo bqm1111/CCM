@@ -9,5 +9,6 @@
     "streammux_batch_size": 4,
     "streammux_buffer_pool": 40,
     "streammux_nvbuf_memory_type": 3,
-    "face_confidence_threshold": 0.70
+    "face_confidence_threshold": 0.70,
+    "mot_confidence_threshold": 0.6
 }

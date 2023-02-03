@@ -1,5 +1,3 @@
-import urllib
-
 import models
 import schema
 from database import Base, SessionLocal, engine
@@ -72,6 +70,7 @@ def update_camera_info(id: int, cameraInfo: schema.CameraCreate, session: Sessio
         camera.height = cameraInfo.height
 
         session.commit()
+        session.refresh(camera)
 
     if not camera:
         raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
@@ -111,7 +110,7 @@ async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)
     return new_agent
 
 @app.put("/Agents/{id}", response_model=schema.AgentBase)
-def update_camera_info(id: int, agentInfo: schema.AgentCreate, session: Session = Depends(get_db)):
+def update_agent_info(id: int, agentInfo: schema.AgentCreate, session: Session = Depends(get_db)):
     agent = session.query(models.Agent).get(id)
 
     if agent:
@@ -121,6 +120,7 @@ def update_camera_info(id: int, agentInfo: schema.AgentCreate, session: Session 
         agent.agent_name = agentInfo.agent_name
         agent.connected = agentInfo.agent_name
         session.commit()
+        session.refresh(agent)
 
     if not agent:
         raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
@@ -128,7 +128,7 @@ def update_camera_info(id: int, agentInfo: schema.AgentCreate, session: Session 
     return agent
 
 @app.delete("/Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camera(id: int, session: Session = Depends(get_db)):
+def delete_agent(id: int, session: Session = Depends(get_db)):
     agent = session.query(models.Agent).get(id)
 
     if agent:
@@ -159,6 +159,7 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
                              streammux_buffer_pool=instanceInfo.streammux_buffer_pool,
                              streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type,
                              face_confidence_threshold=instanceInfo.face_confidence_threshold,
+                             mot_confidence_threshold=instanceInfo.mot_confidence_threshold,
                              status=instanceInfo.status
                              )
     db.add(new_agent)
@@ -169,7 +170,7 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
     return new_agent
 
 @app.put("/DsInstance/{id}", response_model=schema.DsInstanceBase)
-def update_camera_info(id: int, instanceInfo: schema.DsInstanceCreate, session: Session = Depends(get_db)):
+def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, session: Session = Depends(get_db)):
     instance = session.query(models.DsInstance).get(id)
 
     if instance:
@@ -177,7 +178,7 @@ def update_camera_info(id: int, instanceInfo: schema.DsInstanceCreate, session: 
         instance.app_type=instanceInfo.app_type
         instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
         instance.mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic
-        instance.visual_topic=instanceInfo.visual_topic,
+        instance.visual_topic=instanceInfo.visual_topic
         instance.kafka_connection_str=instanceInfo.kafka_connection_str
         instance.streammux_output_width=instanceInfo.streammux_output_width
         instance.streammux_output_height=instanceInfo.streammux_output_height
@@ -185,8 +186,9 @@ def update_camera_info(id: int, instanceInfo: schema.DsInstanceCreate, session: 
         instance.streammux_buffer_pool=instanceInfo.streammux_buffer_pool
         instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
         instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
-        
+        instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
         session.commit()
+        session.refresh(instance)
 
     if not instance:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
@@ -203,7 +205,7 @@ def delete_dsInstance(id: int, session: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
-    return None
+    return instance
 
 
 ############################### CAMERA_AGENT ############################################################
@@ -226,8 +228,10 @@ async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Sessio
 
     camera.agent_id = agent.id
     db.commit()
+    db.refresh(agent)
+    db.refresh(camera)
     
-    return camera
+    return {"camera": camera, "agent": agent}
 
 ############################### CAMERA_INSTANCE ############################################################
 
@@ -250,9 +254,11 @@ async def add_camera_instance_association(instance_name: str, camera_ip: str, db
     
     camera.dsInstance_id = dsInstance.id
     db.commit()
+    db.refresh(dsInstance)
+    db.refresh(camera)
     db.close()
     
-    return camera
+    return {"camera": camera, "instance": dsInstance}
 
 ############################### AGENT_INSTANCE ############################################################
 
@@ -274,9 +280,11 @@ async def add_agent_instance_association(agent_ip: str, instance_name: str, db: 
     
     dsInstance.agent_id = agent.id
     db.commit()
+    db.refresh(agent)
+    db.refresh(dsInstance)
     db.close()
     
-    return dsInstance
+    return {"agent": agent, "instance": dsInstance}
 
 @app.post("/Update_config", status_code=status.HTTP_201_CREATED)
 async def update_config():
@@ -291,6 +299,7 @@ async def refresh(db: Session = Depends(get_db)):
     for agent in agents:
         agent.connected = False
     db.commit()
+    db.refresh(agents)
     db.close()
     
     PRODUCER.poll(0)
@@ -322,7 +331,8 @@ def create_sample_database(db: Session):
                                    streammux_batch_size=4,
                                    streammux_buffer_pool=40,
                                    streammux_nvbuf_memory_type=3,
-                                   face_confidence_threshold=0.1)
+                                   face_confidence_threshold=0.1,
+                                   mot_confidence_threshold=0.3)
     dsInstance2 = models.DsInstance(instance_name="deepstream-VHT", 
                                    app_type="NORMAL",
                                    face_raw_meta_topic="RawFaceMeta",
@@ -334,7 +344,8 @@ def create_sample_database(db: Session):
                                    streammux_batch_size=4,
                                    streammux_buffer_pool=40,
                                    streammux_nvbuf_memory_type=3,
-                                   face_confidence_threshold=0.1)
+                                   face_confidence_threshold=0.1,
+                                   mot_confidence_threshold=0.7)
 
     data = [camera1, camera2, camera3, camera4, agent1, agent2, dsInstance1, dsInstance2]
     agent1.camera = [camera1, camera2, camera3, camera4]

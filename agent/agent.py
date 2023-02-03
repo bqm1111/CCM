@@ -60,18 +60,18 @@ def update_container(container: Container, server_config: DsInstanceConfig, loca
             utils.copy_to_container(container, path, "/workspace/configs")
             # Restart the container
             LOGGER.info(f"Restarting container {container.name}")
-            # container.restart()
+            container.restart()
             LOGGER.info(f"Container {container.name} restarted")
     else:
-        LOGGER.info(f"Starting container {container.name}")
+        LOGGER.info(f"Restarting container {container.name}. Config does not change")
         container.start()
-        LOGGER.info(f"Container {container.name} started")
+        LOGGER.info(f"Container {container.name} restarted")
 
 
 def create_container(name: str, config: DsInstanceConfig):
     # Parse configuration from config and write it to a file
     path = os.path.join("../configs/", name)
-    write_config(path, config)        
+    write_config(path, config)       
     # Run container with mounted config
     LOGGER.info(f"Creating container {name}")
     container_engine_volume = name + "_engine"
@@ -85,6 +85,9 @@ def create_container(name: str, config: DsInstanceConfig):
                                                 container_engine_volume: {
                                            'bind': '/workspace/build', 'mode': 'rw'}},
                                        detach=True)
+    # container = DOCKER_CLIENT.containers.get(name)
+    # utils.copy_to_container(container, path, "/workspace/configs")
+    # container.restart()
     LOGGER.info(f"Creating container {name} ... DONE")
     LOGGER.info(f"Waiting for container {name} to run")
     
@@ -100,8 +103,7 @@ def delete_container(container: Container):
     container.stop()
     container.remove()
     LOGGER.info(f"Deleted container {container.name} - ({container.id})")
-    
-    
+
 def consume():
     global RUNNING
     start = time.time()    
@@ -137,9 +139,9 @@ def consume():
                 if _id is None:
                     continue
                 local_configs[_id] = _config
-        print(containers)
+
         if msg.topic() == TOPIC210:
-            data = parse_raw_as(TOPIC210Model, msg.value())    
+            data = parse_raw_as(TOPIC210Model, msg.value())  
             hostname = socket.gethostname()
             node_id = UUID4(utils.get_hardware_id())
             server_config = {}
@@ -147,6 +149,7 @@ def consume():
                 if machine.node_id == node_id and machine.hostname == hostname:
                     for instance in machine.node_config_list:
                         server_config[instance.name] = instance.config
+                        
                     for container_name in set(local_configs) - set(server_config):
                         delete_container(containers[container_name])
                         
@@ -155,6 +158,8 @@ def consume():
                         
                     for container_name in set(local_configs) & set(server_config):
                         update_container(containers[container_name], server_config[container_name], local_configs[container_name])
+            
+            DOCKER_CLIENT.volumes.prune()
 
                         
         if msg.topic() == TOPIC201:
