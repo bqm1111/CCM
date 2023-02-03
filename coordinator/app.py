@@ -45,11 +45,10 @@ async def add_camera(cameraInfo: schema.CameraCreate, db: Session = Depends(get_
                                 password=cameraInfo.password,
                                 encodeType=cameraInfo.encodeType,
                                 type=cameraInfo.type,
-                                width=cameraInfo.witdh,
+                                width=cameraInfo.width,
                                 height=cameraInfo.height)
     db.add(new_camera)
     db.commit()
-    db.refresh(new_camera)
     db.close()
     
     return new_camera
@@ -70,7 +69,7 @@ def update_camera_info(id: int, cameraInfo: schema.CameraCreate, session: Sessio
         camera.height = cameraInfo.height
 
         session.commit()
-        session.refresh(camera)
+        session.close()
 
     if not camera:
         raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
@@ -84,6 +83,7 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     if camera:
         session.delete(camera)
         session.commit()
+        session.close()
     else:
         raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
 
@@ -104,7 +104,6 @@ async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)
                              connected=agentInfo.connected)
     db.add(new_agent)
     db.commit()
-    db.refresh(new_agent)
     db.close()
     
     return new_agent
@@ -118,10 +117,9 @@ def update_agent_info(id: int, agentInfo: schema.AgentCreate, session: Session =
         agent.hostname = agentInfo.hostname
         agent.node_id = agentInfo.node_id
         agent.agent_name = agentInfo.agent_name
-        agent.connected = agentInfo.agent_name
+        agent.connected = agentInfo.connected
         session.commit()
-        session.refresh(agent)
-
+        session.close()
     if not agent:
         raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
 
@@ -134,6 +132,7 @@ def delete_agent(id: int, session: Session = Depends(get_db)):
     if agent:
         session.delete(agent)
         session.commit()
+        session.close()
     else:
         raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
 
@@ -164,7 +163,6 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
                              )
     db.add(new_agent)
     db.commit()
-    db.refresh(new_agent)
     db.close()
     
     return new_agent
@@ -188,8 +186,7 @@ def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, sessi
         instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
         instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
         session.commit()
-        session.refresh(instance)
-
+        session.close()
     if not instance:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
@@ -202,6 +199,7 @@ def delete_dsInstance(id: int, session: Session = Depends(get_db)):
     if instance:
         session.delete(instance)
         session.commit()
+        session.close()
     else:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
@@ -210,7 +208,7 @@ def delete_dsInstance(id: int, session: Session = Depends(get_db)):
 
 ############################### CAMERA_AGENT ############################################################
 
-@app.put("/Camera_Agents", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
+@app.put("/Camera_Agents", status_code=status.HTTP_201_CREATED)
 async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Session = Depends(get_db)):
     try:
         agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
@@ -228,14 +226,13 @@ async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Sessio
 
     camera.agent_id = agent.id
     db.commit()
-    db.refresh(agent)
-    db.refresh(camera)
+    db.close()
     
     return {"camera": camera, "agent": agent}
 
 ############################### CAMERA_INSTANCE ############################################################
 
-@app.put("/Camera_Instance", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
+@app.put("/Camera_Instance", status_code=status.HTTP_201_CREATED)
 async def add_camera_instance_association(instance_name: str, camera_ip: str, db: Session = Depends(get_db)):
     
     try:
@@ -254,15 +251,13 @@ async def add_camera_instance_association(instance_name: str, camera_ip: str, db
     
     camera.dsInstance_id = dsInstance.id
     db.commit()
-    db.refresh(dsInstance)
-    db.refresh(camera)
     db.close()
     
     return {"camera": camera, "instance": dsInstance}
 
 ############################### AGENT_INSTANCE ############################################################
 
-@app.put("/Agent_Instance", response_model=schema.DsInstanceBase, status_code=status.HTTP_201_CREATED)
+@app.put("/Agent_Instance", status_code=status.HTTP_201_CREATED)
 async def add_agent_instance_association(agent_ip: str, instance_name: str, db: Session = Depends(get_db)):
     try:
         agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
@@ -280,8 +275,6 @@ async def add_agent_instance_association(agent_ip: str, instance_name: str, db: 
     
     dsInstance.agent_id = agent.id
     db.commit()
-    db.refresh(agent)
-    db.refresh(dsInstance)
     db.close()
     
     return {"agent": agent, "instance": dsInstance}
@@ -299,7 +292,6 @@ async def refresh(db: Session = Depends(get_db)):
     for agent in agents:
         agent.connected = False
     db.commit()
-    db.refresh(agents)
     db.close()
     
     PRODUCER.poll(0)

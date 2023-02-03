@@ -6,9 +6,9 @@ from pydantic import BaseModel
 class AgentCreate(BaseModel):
     agent_name: str
     ip_address: str
-    hostname: str
-    node_id: str
-    connected: bool
+    hostname: str = ""
+    node_id: str = ""
+    connected: bool = False
 
 class AgentBase(AgentCreate):
     id: int    
@@ -18,12 +18,12 @@ class AgentBase(AgentCreate):
 class CameraCreate(BaseModel):
     camera_id: int
     ip_address: str
-    username: str
-    password: str
-    encodeType: str
-    type: str
-    width: int
-    height: int
+    username: str = "admin"
+    password: str = "123456a@"
+    encodeType: str = "h265"
+    type: str = "rtsp"
+    width: int = "3840"
+    height: int = "2160"
     
     
 class CameraBase(CameraCreate):
