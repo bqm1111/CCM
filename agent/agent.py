@@ -46,7 +46,6 @@ IMAGE_NAME = settings.IMAGE_NAME
 DOCKER_CLIENT = docker.from_env()
 NODE_ID = utils.get_hardware_id()
 containers = DOCKER_CLIENT.containers.list()
-RUNNING = True
 
 def update_container(container: Container, server_config: DsInstanceConfig, local_config: DsInstanceConfig):
     # Check if server config and local config are identical
@@ -85,9 +84,9 @@ def create_container(name: str, config: DsInstanceConfig):
                                                 container_engine_volume: {
                                            'bind': '/workspace/build', 'mode': 'rw'}},
                                        detach=True)
-    # container = DOCKER_CLIENT.containers.get(name)
-    # utils.copy_to_container(container, path, "/workspace/configs")
-    # container.restart()
+    container = DOCKER_CLIENT.containers.get(name)
+    utils.copy_to_container(container, path, "/workspace/configs")
+    container.restart()
     LOGGER.info(f"Creating container {name} ... DONE")
     LOGGER.info(f"Waiting for container {name} to run")
     
@@ -105,17 +104,15 @@ def delete_container(container: Container):
     LOGGER.info(f"Deleted container {container.name} - ({container.id})")
 
 def consume():
-    global RUNNING
     start = time.time()    
-    while RUNNING:
+    while True:
         current = time.time()
         if current - start > settings.check_container_status_interval:
-            print("sending TOPIC220")
+            print("sending TOPIC220 to update status")
             start = current
             agent_states = []
             for _container in DOCKER_CLIENT.containers.list(all=True):
                 if _container.attrs['Config']['Image'] == IMAGE_NAME:
-                    # print(_container.attrs["State"])
                     agent_states.append(InstanceStatus(instance_name=_container.name, state=_container.attrs["State"]["Status"]))
             
             if len(agent_states) > 0:
@@ -165,7 +162,7 @@ def consume():
         if msg.topic() == TOPIC201:
             data = parse_raw_as(Topic201Model, msg.value())
             if utils.has_ip_address(str(data.ip_address)):
-                LOGGER.info("Sending TOPIC200")
+                LOGGER.info("Sending TOPIC200 to refresh connection")
                 hostname = socket.gethostname()
                 node_id = UUID4(utils.get_hardware_id())
                 PRODUCER.poll(0)
@@ -178,10 +175,7 @@ def main():
     try:
         consume()
     except KeyboardInterrupt:
-        PRODUCER.flush()
-        CONSUMER.close()
-        RUNNING = False
-        LOGGER.info("gracefully close consumers and flush producer")
+        LOGGER.info("Close consumers and flush producer")
     finally:
         PRODUCER.flush()
         CONSUMER.close()

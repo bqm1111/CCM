@@ -192,7 +192,7 @@ def update_configuration():
     PRODUCER.produce(TOPIC210, topic210data.json())
 
 def produce():
-    while RUNNING:
+    while True:
         msg = CONSUMER.poll(1)
         if msg is None:
             continue
@@ -251,11 +251,11 @@ def main():
     try:
         produce()
     except KeyboardInterrupt:
-        global RUNNING
-        RUNNING = False
-        print("gracefully close consumers and flush producer")
+        LOGGER.info("Close consumers and flush producer")
     finally:
         PRODUCER.flush()
+        CONSUMER.close()
+
 
 if __name__ == "__main__":
     main()
