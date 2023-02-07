@@ -1,7 +1,6 @@
 import uuid
 
 from database import Base
-from flask import Flask, jsonify
 from sqlalchemy import (Boolean, Column, Float, ForeignKey, Integer, String,
                         Table)
 from sqlalchemy.orm import relationship

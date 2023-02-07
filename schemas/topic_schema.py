@@ -24,7 +24,6 @@ class InstanceStatus(BaseModel):
     instance_name: str
     state: str
 
-
 class Topic200Model(BaseModel):
     """greeting from Agent to Coordinator"""
 

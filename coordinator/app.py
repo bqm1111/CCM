@@ -2,7 +2,6 @@ import models
 import schema
 from database import Base, SessionLocal, engine
 from fastapi import Depends, FastAPI, HTTPException, status
-from flask import jsonify
 from pydantic.typing import List
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from sqlalchemy.orm import Session, joinedload
@@ -29,55 +28,84 @@ def get_db():
 @app.on_event("shutdown")
 async def shutdown_event():
     PRODUCER.flush()
+
+@app.delete("/Database", status_code=status.HTTP_204_NO_CONTENT)
+def delete_database(db: Session = Depends(get_db)):
+    try:
+        db.query(models.Agent).delete()
+        db.query(models.DsInstance).delete()
+        db.query(models.Camera).delete()
+        db.commit()
+    except:
+        db.rollback()
     
+    return {"detail": "Successfully deleted all records in database"}
+
 ############################### CAMERA ############################################################
 @app.get("/Cameras/all_camera")
 async def get_all_camera(db: Session = Depends(get_db)):
     camera = db.query(models.Camera).all()
     return camera
     
-
 @app.post("/Cameras", response_model=schema.CameraBase, status_code=status.HTTP_201_CREATED)
 async def add_camera(cameraInfo: schema.CameraCreate, db: Session = Depends(get_db)):
-    new_camera = models.Camera(ip_address = cameraInfo.ip_address, 
-                               camera_id = cameraInfo.camera_id,
-                                username=cameraInfo.username,
-                                password=cameraInfo.password,
-                                encodeType=cameraInfo.encodeType,
-                                type=cameraInfo.type,
-                                width=cameraInfo.width,
-                                height=cameraInfo.height)
-    db.add(new_camera)
-    db.commit()
-    db.close()
+    try:
+        _ = db.query(models.Camera).where(models.Camera.camera_id == cameraInfo.camera_id).one()
+    except:
+        try:
+            _ = db.query(models.Camera).where(models.Camera.ip_address == cameraInfo.ip_address).one()
+        except:
+            new_camera = models.Camera(ip_address = cameraInfo.ip_address, 
+                                    camera_id = cameraInfo.camera_id,
+                                        username=cameraInfo.username,
+                                        password=cameraInfo.password,
+                                        encodeType=cameraInfo.encodeType,
+                                        type=cameraInfo.type,
+                                        width=cameraInfo.width,
+                                        height=cameraInfo.height)
+            db.add(new_camera)
+            db.commit()
+            db.close()
+        else:
+            raise HTTPException(status_code=400, detail=f"Camera record with ip_address = {cameraInfo.ip_address} is already exist")
+    else:
+        raise HTTPException(status_code=400, detail=f"Camera record with camera_id = {cameraInfo.camera_id} is already exist")
     
     return new_camera
 
 @app.put("/Cameras/{id}", response_model=schema.CameraBase)
-def update_camera_info(id: int, cameraInfo: schema.CameraCreate, session: Session = Depends(get_db)):
+async def update_camera_info(id: int, cameraInfo: schema.CameraCreate, db: Session = Depends(get_db)):
+    try:
+        _ = db.query(models.Camera).where(models.Camera.camera_id == cameraInfo.camera_id).one()
+    except:
+        try:
+            _ = db.query(models.Camera).where(models.Camera.ip_address == cameraInfo.ip_address).one()
+        except:
+            camera = db.query(models.Camera).get(id)
 
-    camera = session.query(models.Camera).get(id)
+            if camera:
+                camera.camera_id = cameraInfo.camera_id
+                camera.ip_address = cameraInfo.ip_address
+                camera.username = cameraInfo.username
+                camera.password = cameraInfo.password
+                camera.encodeType = cameraInfo.encodeType
+                camera.type = cameraInfo.type
+                camera.width = cameraInfo.width
+                camera.height = cameraInfo.height
 
-    if camera:
-        camera.camera_id = cameraInfo.camera_id
-        camera.ip_address = cameraInfo.ip_address
-        camera.username = cameraInfo.username
-        camera.password = cameraInfo.password
-        camera.encodeType = cameraInfo.encodeType
-        camera.type = cameraInfo.type
-        camera.width = cameraInfo.width
-        camera.height = cameraInfo.height
-
-        session.commit()
-        session.close()
-
-    if not camera:
-        raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-
+                db.commit()
+                db.close()
+            else:
+                raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
+        else:
+            raise HTTPException(status_code=400, detail=f"Camera record with ip_address = {cameraInfo.ip_address} is already exist")
+    else:
+        raise HTTPException(status_code=400, detail=f"Camera record with camera_id = {cameraInfo.camera_id} is already exist")
+        
     return camera
 
 @app.delete("/Cameras/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camera(id: int, session: Session = Depends(get_db)):
+async def delete_camera(id: int, session: Session = Depends(get_db)):
     camera = session.query(models.Camera).get(id)
 
     if camera:
@@ -87,7 +115,7 @@ def delete_camera(id: int, session: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
 
-    return None
+    return {f"Successfully deleted camera record with id = {id}"}
 
 ############################### AGENT ############################################################
 @app.get("/Agent/all_agent")
@@ -97,32 +125,41 @@ async def get_all_agent(db: Session = Depends(get_db)):
 
 @app.post("/Agents", response_model=schema.AgentBase, status_code=status.HTTP_201_CREATED)
 async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
-    new_agent = models.Agent(ip_address=agentInfo.ip_address,
-                             node_id=agentInfo.node_id,
-                             hostname=agentInfo.hostname,
-                             agent_name=agentInfo.agent_name,
-                             connected=agentInfo.connected)
-    db.add(new_agent)
-    db.commit()
-    db.close()
+    try:
+        _ = db.query(models.Camera).where(models.Camera.ip_address == agentInfo.ip_address).one()
+    except:
+        new_agent = models.Agent(ip_address=agentInfo.ip_address,
+                                node_id=agentInfo.node_id,
+                                hostname=agentInfo.hostname,
+                                agent_name=agentInfo.agent_name,
+                                connected=agentInfo.connected)
+        db.add(new_agent)
+        db.commit()
+        db.close()
+    else:
+        raise HTTPException(status_code=400, detail=f"Agent record with ip_address = {agentInfo.ip_address} is already exist")
     
     return new_agent
 
 @app.put("/Agents/{id}", response_model=schema.AgentBase)
-def update_agent_info(id: int, agentInfo: schema.AgentCreate, session: Session = Depends(get_db)):
-    agent = session.query(models.Agent).get(id)
+async def update_agent_info(id: int, agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
+    try:
+        _ = db.query(models.Camera).where(models.Camera.ip_address == agentInfo.ip_address).one()
+    except:
+        agent = db.query(models.Agent).get(id)
 
-    if agent:
-        agent.ip_address = agentInfo.ip_address
-        agent.hostname = agentInfo.hostname
-        agent.node_id = agentInfo.node_id
-        agent.agent_name = agentInfo.agent_name
-        agent.connected = agentInfo.connected
-        session.commit()
-        session.close()
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
-
+        if agent:
+            agent.ip_address = agentInfo.ip_address
+            agent.hostname = agentInfo.hostname
+            agent.node_id = agentInfo.node_id
+            agent.agent_name = agentInfo.agent_name
+            agent.connected = agentInfo.connected
+            db.commit()
+            db.close()
+        else:
+            raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
+    else:
+        raise HTTPException(status_code=400, detail=f"Agent record with ip_address = {agentInfo.ip_address} is already exist")
     return agent
 
 @app.delete("/Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -136,7 +173,7 @@ def delete_agent(id: int, session: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
 
-    return None
+    return {f"Successfully deleted agent record with id = {id}"}
 
 ############################### DSINSTANCE ############################################################
 @app.get("/DsInstance/all_instance")
@@ -168,8 +205,8 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
     return new_agent
 
 @app.put("/DsInstance/{id}", response_model=schema.DsInstanceBase)
-def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, session: Session = Depends(get_db)):
-    instance = session.query(models.DsInstance).get(id)
+def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, db: Session = Depends(get_db)):
+    instance = db.query(models.DsInstance).get(id)
 
     if instance:
         instance.instance_name=instanceInfo.instance_name
@@ -185,9 +222,9 @@ def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, sessi
         instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
         instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
         instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
-        session.commit()
-        session.close()
-    if not instance:
+        db.commit()
+        db.close()
+    else:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
     return instance
@@ -203,12 +240,13 @@ def delete_dsInstance(id: int, session: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
-    return instance
+    return {f"Successfully deleted instance record with id = {id}"}
+
 
 
 ############################### CAMERA_AGENT ############################################################
 
-@app.put("/Camera_Agents", status_code=status.HTTP_201_CREATED)
+@app.post("/Camera_Agents", status_code=status.HTTP_201_CREATED)
 async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Session = Depends(get_db)):
     try:
         agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
@@ -230,11 +268,25 @@ async def add_camera_agent_association(agent_ip: str, camera_ip: str, db: Sessio
     
     return {"camera": camera, "agent": agent}
 
+@app.put("/Camera_Agents", status_code=status.HTTP_201_CREATED)
+async def remove_camera_agent_association(camera_ip: str, db: Session = Depends(get_db)):    
+    try:        
+        camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple camera item with ip_address {camera_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"camera item with ip_address {camera_ip} not found")
+
+    camera.agent_id = None
+    db.commit()
+    db.close()
+    
+    return {"camera": camera}
+
 ############################### CAMERA_INSTANCE ############################################################
 
-@app.put("/Camera_Instance", status_code=status.HTTP_201_CREATED)
+@app.post("/Camera_Instance", status_code=status.HTTP_201_CREATED)
 async def add_camera_instance_association(instance_name: str, camera_ip: str, db: Session = Depends(get_db)):
-    
     try:
         dsInstance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
     except MultipleResultsFound:
@@ -255,9 +307,25 @@ async def add_camera_instance_association(instance_name: str, camera_ip: str, db
     
     return {"camera": camera, "instance": dsInstance}
 
+@app.put("/Camera_Instance", status_code=status.HTTP_201_CREATED)
+async def remove_camera_instance_association(camera_ip: str, db: Session = Depends(get_db)):    
+    try:        
+        camera = db.query(models.Camera).where(models.Camera.ip_address == camera_ip).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple camera item with ip_address {camera_ip} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"camera item with ip_address {camera_ip} not found")
+    
+    camera.dsInstance_id = None
+    db.commit()
+    db.close()
+    
+    return {"camera": camera}
+
+
 ############################### AGENT_INSTANCE ############################################################
 
-@app.put("/Agent_Instance", status_code=status.HTTP_201_CREATED)
+@app.post("/Agent_Instance", status_code=status.HTTP_201_CREATED)
 async def add_agent_instance_association(agent_ip: str, instance_name: str, db: Session = Depends(get_db)):
     try:
         agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
@@ -278,6 +346,22 @@ async def add_agent_instance_association(agent_ip: str, instance_name: str, db: 
     db.close()
     
     return {"agent": agent, "instance": dsInstance}
+
+@app.put("/Agent_Instance", status_code=status.HTTP_201_CREATED)
+async def remove_agent_instance_association(instance_name: str, db: Session = Depends(get_db)):    
+    try:
+        dsInstance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except MultipleResultsFound:
+        raise HTTPException(status_code=400, detail=f"Multiple DsInstance item with name {instance_name} are found. Please provide more information")
+    except NoResultFound:
+        raise HTTPException(status_code=404, detail=f"DsInstance item with name {instance_name} not found")
+    
+    dsInstance.agent_id = None
+    db.commit()
+    db.close()
+    
+    return {"instance": dsInstance}
+
 
 @app.post("/Update_config", status_code=status.HTTP_201_CREATED)
 async def update_config():

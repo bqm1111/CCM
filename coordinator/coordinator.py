@@ -14,7 +14,7 @@ from confluent_kafka import Consumer, Producer
 from database import Base, SessionLocal, engine
 from pydantic import UUID4, parse_raw_as
 from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_
 
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
@@ -139,16 +139,18 @@ def generate_new_configuration():
                 try:
                     cam = DATABASE.query(models.Camera).where(models.Camera.camera_id == camera.camera_id).one()
                 except NoResultFound:
-                    LOGGER.warning(f"No camera with camera_id {camera.camera_id} in agent {agent.agent_name} is found")
-                
-                url_password = urllib.parse.quote_plus(cam.password)
-                rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
-                source = dict()
-                source["camera_id"] = str(cam.camera_id)
-                source["address"] = rtsp_address
-                source["encode_type"] = cam.encodeType
-                source["type"] = cam.type
-                source_list.append(SingleSourceConfig.parse_obj(source))
+                    LOGGER.warning(f"No camera with camera_id {camera.camera_id} in agent {agent.agent_name} is found in database")
+                except MultipleResultsFound:
+                    LOGGER.error(f"Multiple camera with camera_id {camera.camera_id} in agent {agent.agent_name} are found in database")
+                else:
+                    url_password = urllib.parse.quote_plus(cam.password)
+                    rtsp_address = "rtsp://" + cam.username + ":" + url_password + "@" + cam.ip_address + "/main"
+                    source = dict()
+                    source["camera_id"] = str(cam.camera_id)
+                    source["address"] = rtsp_address
+                    source["encode_type"] = cam.encodeType
+                    source["type"] = cam.type
+                    source_list.append(SingleSourceConfig.parse_obj(source))
             source_conf = SourcesConfig(sources=source_list)
             app_config = dsInstance.to_app_conf_dict()
             app_conf = DsAppConfig.parse_obj(app_config)
