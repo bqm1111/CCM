@@ -15,7 +15,7 @@ class Camera(Base):
     id = Column(Integer, primary_key=True)
     agent_id = Column(Integer, ForeignKey('agents.id'))
     dsInstance_id = Column(Integer, ForeignKey('dsInstance.id'))
-    camera_id = Column(Integer, nullable=False)
+    camera_id = Column(String, nullable=False)
     ip_address = Column(String, nullable=False)
     username = Column(String, nullable=True)
     password = Column(String, nullable=True)

@@ -16,7 +16,7 @@ class AgentBase(AgentCreate):
         orm_mode = True
 
 class CameraCreate(BaseModel):
-    camera_id: int
+    camera_id: str
     ip_address: str
     username: str = "admin"
     password: str = "123456a@"
