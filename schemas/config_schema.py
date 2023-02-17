@@ -171,7 +171,7 @@ class FACE_sgie_config(SGIEConfig):
 
 class FACE_align_config(BaseModel):
     enable: NonNegativeInt = Field(1, const=True)
-    target_unique_ids = Field(4, const=True, description="match the gie-unique-id of the faceid sgie")
+    target_unique_ids: NonNegativeInt = Field(4, const=True, description="match the gie-unique-id of the faceid sgie")
     network_input_shape: constr(regex=r"^[\d;]*$") = Field("32;3;112;112")
     tensor_data_type: TensorDataType = Field(TensorDataType.FP32, const=True)
     tensor_buf_pool_size: NonNegativeInt = 10  # preallocate 10*network-input-shape*tensor-data-type

@@ -11,6 +11,7 @@ TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
 TOPIC300 = "UpdateConfig"
 TOPIC301 = "Refresh"
+
 class DsInstance(BaseModel):
     name: str
     config: DsInstanceConfig
@@ -38,7 +39,7 @@ class Topic200Model(BaseModel):
 
 
 class Topic201Model(BaseModel):
-    """response from Coordianator to Agent"""
+    """response from Coordinator to Agent"""
     agent_name: str
     ip_address: IPvAnyAddress
     class Config:
