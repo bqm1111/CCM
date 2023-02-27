@@ -42,7 +42,7 @@ def delete_database(db: Session = Depends(get_db)):
     return {"detail": "Successfully deleted all records in database"}
 
 ############################### CAMERA ############################################################
-@app.get("/Cameras/all_camera")
+@app.get("/Cameras/all_camera", status_code=status.HTTP_200_OK)
 async def get_all_camera(db: Session = Depends(get_db)):
     camera = db.query(models.Camera).all()
     return camera
@@ -126,7 +126,7 @@ async def get_all_agent(db: Session = Depends(get_db)):
 @app.post("/Agents", response_model=schema.AgentBase, status_code=status.HTTP_201_CREATED)
 async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
     try:
-        _ = db.query(models.Camera).where(models.Camera.ip_address == agentInfo.ip_address).one()
+        _ = db.query(models.Agent).where(models.Agent.ip_address == agentInfo.ip_address).one()
     except:
         new_agent = models.Agent(ip_address=agentInfo.ip_address,
                                 node_id=agentInfo.node_id,
@@ -144,7 +144,7 @@ async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)
 @app.put("/Agents/{id}", response_model=schema.AgentBase)
 async def update_agent_info(id: int, agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
     try:
-        _ = db.query(models.Camera).where(models.Camera.ip_address == agentInfo.ip_address).one()
+        _ = db.query(models.Agent).where(models.Agent.ip_address == agentInfo.ip_address).one()
     except:
         agent = db.query(models.Agent).get(id)
 
@@ -183,21 +183,26 @@ async def get_all_dsInstance(db: Session = Depends(get_db)):
 
 @app.post("/DsInstance", response_model=schema.DsInstanceBase, status_code=status.HTTP_201_CREATED)
 async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = Depends(get_db)):
-    new_agent = models.DsInstance(instance_name=instanceInfo.instance_name,
-                             app_type=instanceInfo.app_type,
-                             face_raw_meta_topic=instanceInfo.face_raw_meta_topic,
-                             mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic,
-                             visual_topic=instanceInfo.visual_topic,
-                             kafka_connection_str=instanceInfo.kafka_connection_str,
-                             streammux_output_width=instanceInfo.streammux_output_width,
-                             streammux_output_height=instanceInfo.streammux_output_height,
-                             streammux_batch_size=instanceInfo.streammux_batch_size,
-                             streammux_buffer_pool=instanceInfo.streammux_buffer_pool,
-                             streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type,
-                             face_confidence_threshold=instanceInfo.face_confidence_threshold,
-                             mot_confidence_threshold=instanceInfo.mot_confidence_threshold,
-                             status=instanceInfo.status
-                             )
+    try:
+        _ = db.query(models.DsInstance).where(models.DsInstance.instance_name == instanceInfo.instance_name).one()
+    except:
+        new_agent = models.DsInstance(instance_name=instanceInfo.instance_name,
+                                app_type=instanceInfo.app_type,
+                                face_raw_meta_topic=instanceInfo.face_raw_meta_topic,
+                                mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic,
+                                visual_topic=instanceInfo.visual_topic,
+                                kafka_connection_str=instanceInfo.kafka_connection_str,
+                                streammux_output_width=instanceInfo.streammux_output_width,
+                                streammux_output_height=instanceInfo.streammux_output_height,
+                                streammux_batch_size=instanceInfo.streammux_batch_size,
+                                streammux_buffer_pool=instanceInfo.streammux_buffer_pool,
+                                streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type,
+                                face_confidence_threshold=instanceInfo.face_confidence_threshold,
+                                mot_confidence_threshold=instanceInfo.mot_confidence_threshold,
+                                status=instanceInfo.status
+                                )
+    else:
+        raise HTTPException(status_code=400, detail=f"DsInstance record with instance_name = {instanceInfo.instance_name} is already exist")
     db.add(new_agent)
     db.commit()
     db.close()
@@ -206,26 +211,31 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
 
 @app.put("/DsInstance/{id}", response_model=schema.DsInstanceBase)
 def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, db: Session = Depends(get_db)):
-    instance = db.query(models.DsInstance).get(id)
+    try:
+        _ = db.query(models.DsInstance).where(models.DsInstance.instance_name == instanceInfo.instance_name).one()
+    except:
+        instance = db.query(models.DsInstance).get(id)
 
-    if instance:
-        instance.instance_name=instanceInfo.instance_name
-        instance.app_type=instanceInfo.app_type
-        instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
-        instance.mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic
-        instance.visual_topic=instanceInfo.visual_topic
-        instance.kafka_connection_str=instanceInfo.kafka_connection_str
-        instance.streammux_output_width=instanceInfo.streammux_output_width
-        instance.streammux_output_height=instanceInfo.streammux_output_height
-        instance.streammux_batch_size=instanceInfo.streammux_batch_size
-        instance.streammux_buffer_pool=instanceInfo.streammux_buffer_pool
-        instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
-        instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
-        instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
-        db.commit()
-        db.close()
+        if instance:
+            instance.instance_name=instanceInfo.instance_name
+            instance.app_type=instanceInfo.app_type
+            instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
+            instance.mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic
+            instance.visual_topic=instanceInfo.visual_topic
+            instance.kafka_connection_str=instanceInfo.kafka_connection_str
+            instance.streammux_output_width=instanceInfo.streammux_output_width
+            instance.streammux_output_height=instanceInfo.streammux_output_height
+            instance.streammux_batch_size=instanceInfo.streammux_batch_size
+            instance.streammux_buffer_pool=instanceInfo.streammux_buffer_pool
+            instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
+            instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
+            instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
+            db.commit()
+            db.close()
+        else:
+            raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
     else:
-        raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
+        raise HTTPException(status_code=400, detail=f"DsInstance record with instance_name = {instanceInfo.instance_name} is already exist")
 
     return instance
 
