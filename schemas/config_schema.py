@@ -1,7 +1,6 @@
 """One should use DsAppConfig, VideoConfig, MOT_sgie_config, FACE_sgie_config, parse_txt_as"""
 import os
 import re
-from enum import Enum, IntEnum
 from pathlib import Path
 from typing import List, Optional, Tuple, Type, TypeVar
 
@@ -9,7 +8,10 @@ from pydantic import (AnyHttpUrl, AnyUrl, BaseModel, DirectoryPath, Field,
                       NonNegativeFloat, NonNegativeInt, PositiveFloat,
                       PositiveInt, StrBytes, constr, parse_obj_as)
 
-from common.datatype import (BoolEnum, ClusterMode, DsAppType, EncodeType,
+import sys
+sys.path.append("../")
+
+from schemas.datatype import (BoolEnum, ClusterMode, DsAppType, EncodeType,
                              ModelColorFormat, NetworkMode, NetworkType,
                              ProcessMode, TensorDataType)
 

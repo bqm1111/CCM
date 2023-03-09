@@ -1,11 +1,6 @@
-import uuid
-
 from database import Base
-from sqlalchemy import (Boolean, Column, Float, ForeignKey, Integer, String,
-                        Table)
+from sqlalchemy import (Boolean, Column, Float, ForeignKey, Integer, String)
 from sqlalchemy.orm import relationship
-
-from common.datatype import EncodeType, SourceType
 
 
 # Declarative styles

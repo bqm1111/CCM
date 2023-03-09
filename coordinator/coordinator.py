@@ -7,7 +7,7 @@ import socket
 import subprocess
 import urllib
 import uuid
-
+import time
 from dynaconf import Dynaconf
 import models
 from confluent_kafka import Consumer, Producer
@@ -16,15 +16,17 @@ from pydantic import UUID4, parse_raw_as
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_
+import sys
+sys.path.append("../")
 
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
                                    MOT_sgie_config, SingleSourceConfig,
                                    SourcesConfig, parse_txt_as)
-from schemas.topic_schema import (TOPIC301,TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC300,
-                                  DsInstance, NodeInfo, Topic200Model,
-                                  Topic201Model, TOPIC210Model, Topic220Model
+from schemas.topic_schema import (TOPIC301,TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC300, TOPIC222,
+                                  DsInstance, NodeInfo, ExitedInstanceInfo, Topic200Model,
+                                  Topic201Model, TOPIC210Model, Topic220Model, Topic222Model
                                   )
 
 settings = Dynaconf(settings_file='settings.toml')
@@ -69,27 +71,27 @@ def delivery_report(err, msg):
         print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
 def create_sample_TOPIC210():
-    with open("../sample_configs/app_conf.json", "r") as f:
+    with open("sample_configs/app_conf.json", "r") as f:
         appconfig = json.load(f)
-    with open("../sample_configs/source_list.json", "r") as f:
+    with open("sample_configs/source_list.json", "r") as f:
         source_list_json = json.load(f)
     source_list = []
     for cam in source_list_json["sources"]:
         source_list.append(SingleSourceConfig.parse_obj(cam))
 
     
-    with open("../sample_configs/faceid_primary.txt") as f:
+    with open("sample_configs/faceid_primary.txt") as f:
         face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
-    with open("../sample_configs/mot_primary.txt") as f:
+    with open("sample_configs/mot_primary.txt") as f:
         mot_pgie_json, _ = parse_txt_as(MOT_pgie_config, f.read())
 
-    with open("../sample_configs/faceid_secondary.txt") as f:
+    with open("sample_configs/faceid_secondary.txt") as f:
         face_sgie_json, _ = parse_txt_as(FACE_sgie_config, f.read())
 
-    with open("../sample_configs/mot_sgie.txt") as f:
+    with open("sample_configs/mot_sgie.txt") as f:
         mot_sgie_json, _ = parse_txt_as(MOT_sgie_config, f.read())
 
-    with open("../sample_configs/faceid_align_config.txt") as f:
+    with open("sample_configs/faceid_align_config.txt") as f:
         face_align_json, _ = parse_txt_as(FACE_align_config, f.read())
 
     face_pgie_conf = FACE_pgie_config.parse_obj(face_pgie_json)
@@ -110,12 +112,28 @@ def create_sample_TOPIC210():
     deepstream_instance_info_list = []
     deepstream_instance_info_list.append(DsInstance(name="deepstream-1", config=instance_config))
     deepstream_instance_info_list.append(DsInstance(name="deepstream-2", config=instance_config))
-    
+
     hostname = socket.gethostname()
     node_id = UUID4(get_hardware_id())
     return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname,
                                                 node_id=node_id,
                                                 node_config_list=deepstream_instance_info_list)])
+def generate_exited_instance_list():
+    DATABASE.flush()
+    exited_list = []
+    for agent in DATABASE.query(models.Agent).options(joinedload(models.Agent.dsInstance)).all():
+        DATABASE.refresh(agent)
+        if not agent.connected:
+            continue
+        exited_instance_name_list = []
+        for dsInstance in agent.dsInstance:
+            DATABASE.refresh(dsInstance)
+            if dsInstance.status == 'exited':
+                exited_instance_name_list.append(dsInstance.instance_name)
+        
+        exited_list.append(ExitedInstanceInfo(hostname=agent.hostname, node_id=agent.node_id, exited_instance_name_list=exited_instance_name_list))
+    return Topic222Model(exited_list=exited_list)       
+
 
 def generate_new_configuration():
     LOGGER.info("Generating new configuration from database")
@@ -155,18 +173,18 @@ def generate_new_configuration():
             app_config = dsInstance.to_app_conf_dict()
             app_conf = DsAppConfig.parse_obj(app_config)
             
-            with open("../sample_configs/faceid_primary.txt") as f:
+            with open("sample_configs/faceid_primary.txt") as f:
                 face_pgie_json, _ = parse_txt_as(FACE_pgie_config, f.read())
-            with open("../sample_configs/mot_primary.txt") as f:
+            with open("sample_configs/mot_primary.txt") as f:
                 mot_pgie_json, _ = parse_txt_as(MOT_pgie_config, f.read())
 
-            with open("../sample_configs/faceid_secondary.txt") as f:
+            with open("sample_configs/faceid_secondary.txt") as f:
                 face_sgie_json, _ = parse_txt_as(FACE_sgie_config, f.read())
 
-            with open("../sample_configs/mot_sgie.txt") as f:
+            with open("sample_configs/mot_sgie.txt") as f:
                 mot_sgie_json, _ = parse_txt_as(MOT_sgie_config, f.read())
 
-            with open("../sample_configs/faceid_align_config.txt") as f:
+            with open("sample_configs/faceid_align_config.txt") as f:
                 face_align_json, _ = parse_txt_as(FACE_align_config, f.read())
             
             face_pgie_conf = FACE_pgie_config.parse_obj(face_pgie_json)
@@ -189,12 +207,22 @@ def generate_new_configuration():
                                         node_config_list=instance_info_list))
     return TOPIC210Model(agent_info_list=agent_info_list)
 
+
 def update_configuration():
     topic210data = generate_new_configuration()
     PRODUCER.produce(TOPIC210, topic210data.json())
 
+
 def produce():
+    start = time.time()   
     while True:
+        current = time.time()
+        if current - start > settings.check_exited_container_interval:
+            start = current
+            print("sending TOPIC222 to restart exited container")
+            topic222data = generate_exited_instance_list()
+            PRODUCER.produce(TOPIC222, topic222data.json())
+
         msg = CONSUMER.poll(1)
         if msg is None:
             continue

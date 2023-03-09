@@ -1,0 +1,19 @@
+FROM python:3.9.16
+
+RUN mkdir -p ~/.config/pip && \
+    echo \
+    "[global]\n" \
+    "no-cache-dir = true\n" \
+    "trusted-host = 172.21.100.15\n" \
+    "index = http://172.21.100.15:8081/repository/pypi-all/pypi\n" \
+    "index-url = http://172.21.100.15:8081/repository/pypi-all/simple" \
+    > ~/.config/pip/pip.conf
+WORKDIR /workspace
+
+COPY coordinator/ coordinator/
+RUN pip install -r coordinator/requirements.txt
+COPY sample_configs/ sample_configs/
+COPY schemas/ schemas/
+
+WORKDIR /workspace/coordinator/
+CMD ["python", "app.py"]

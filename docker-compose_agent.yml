@@ -1,0 +1,16 @@
+version: '3.9'
+
+
+services:
+    agent:
+        build:
+            context: .
+            dockerfile: Dockerfile_agent
+        image: agent:latest
+
+        user: root
+        container_name: agent
+        volumes: 
+            - /var/run/docker.sock:/var/run/docker.sock
+            - /etc:/host-etc
+

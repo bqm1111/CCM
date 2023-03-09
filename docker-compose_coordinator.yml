@@ -1,0 +1,14 @@
+version: '3.9'
+
+
+services:
+    coordinator:
+        build:
+            context: .
+            dockerfile: Dockerfile_coordinator
+        image: coordinator:latest
+
+        user: root
+        container_name: coordinator
+        ports:
+          - "4444:4444"

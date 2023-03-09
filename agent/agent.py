@@ -14,8 +14,8 @@ from dynaconf import Dynaconf
 from pydantic import UUID4, parse_obj_as, parse_raw_as
 
 from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
-from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220,
-                                  DsInstance, Topic200Model, Topic201Model,
+from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC222,
+                                  DsInstance, Topic200Model, Topic201Model, Topic222Model,
                                   TOPIC210Model, Topic220Model, InstanceStatus)
 
 settings = Dynaconf(settings_file='settings.toml')
@@ -37,7 +37,7 @@ CONSUMER = Consumer(
     }
 )
 
-CONSUMER.subscribe([TOPIC201, TOPIC210])
+CONSUMER.subscribe([TOPIC201, TOPIC210, TOPIC222])
 
 PRODUCER = Producer({"bootstrap.servers": BOOTSTRAP_SERVER})
 
@@ -157,6 +157,20 @@ def consume():
                         update_container(containers[container_name], server_config[container_name], local_configs[container_name])
             
             DOCKER_CLIENT.volumes.prune()
+            
+        if msg.topic() == TOPIC222:
+            data = parse_raw_as(Topic222Model, msg.value())  
+            hostname = socket.gethostname()
+            node_id = UUID4(utils.get_hardware_id())
+            server_config = {}
+            for machine in data.exited_list:
+                if machine.node_id == node_id and machine.hostname == hostname:
+                    for instance_name in machine.exited_instance_name_list:
+                        server_config[instance_name] = instance_name
+                    for container_name in set(local_configs) & set(server_config):
+                        LOGGER.info(f"Restarting exited container {container_name}")
+                        containers[container_name].start()
+                        LOGGER.info(f"Container {container_name} restarted")
 
                         
         if msg.topic() == TOPIC201:

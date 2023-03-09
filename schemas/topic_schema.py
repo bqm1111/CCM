@@ -9,6 +9,7 @@ TOPIC200 = "AgentInfo"
 TOPIC201 = "AgentCommand"
 TOPIC210 = "AgentConfig"
 TOPIC220 = "AgentResponse"
+TOPIC222 = "ExitedInstance"
 TOPIC300 = "UpdateConfig"
 TOPIC301 = "Refresh"
 
@@ -21,6 +22,11 @@ class NodeInfo(BaseModel):
     node_id: UUID4
     node_config_list: List[DsInstance]
 
+class ExitedInstanceInfo(BaseModel):
+    hostname: str
+    node_id: UUID4
+    exited_instance_name_list: List[str]
+    
 class InstanceStatus(BaseModel):
     instance_name: str
     state: str
@@ -61,6 +67,12 @@ class Topic220Model(BaseModel):
     class Config:
         title = "AgentResponse"
 
+class Topic222Model(BaseModel):
+    """list all exited instance in all agent"""
+    exited_list: List[ExitedInstanceInfo]
+    class Config:
+        title = "ExitedInstance"
+        
 class Topic300Model(BaseModel):
     """Read config from database and send to all agents"""
     desc: str

@@ -7,6 +7,9 @@ from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from sqlalchemy.orm import Session, joinedload
 from confluent_kafka import Producer
 from dynaconf import Dynaconf
+import sys
+sys.path.append("../")
+
 from schemas.topic_schema import (Topic300Model,Topic301Model, TOPIC301, TOPIC300)
 import uvicorn
 
@@ -75,32 +78,22 @@ async def add_camera(cameraInfo: schema.CameraCreate, db: Session = Depends(get_
 
 @app.put("/Cameras/{id}", response_model=schema.CameraBase)
 async def update_camera_info(id: int, cameraInfo: schema.CameraCreate, db: Session = Depends(get_db)):
-    try:
-        _ = db.query(models.Camera).where(models.Camera.camera_id == cameraInfo.camera_id).one()
-    except:
-        try:
-            _ = db.query(models.Camera).where(models.Camera.ip_address == cameraInfo.ip_address).one()
-        except:
-            camera = db.query(models.Camera).get(id)
+    camera = db.query(models.Camera).get(id)
 
-            if camera:
-                camera.camera_id = cameraInfo.camera_id
-                camera.ip_address = cameraInfo.ip_address
-                camera.username = cameraInfo.username
-                camera.password = cameraInfo.password
-                camera.encodeType = cameraInfo.encodeType
-                camera.type = cameraInfo.type
-                camera.width = cameraInfo.width
-                camera.height = cameraInfo.height
+    if camera:
+        camera.camera_id = cameraInfo.camera_id
+        camera.ip_address = cameraInfo.ip_address
+        camera.username = cameraInfo.username
+        camera.password = cameraInfo.password
+        camera.encodeType = cameraInfo.encodeType
+        camera.type = cameraInfo.type
+        camera.width = cameraInfo.width
+        camera.height = cameraInfo.height
 
-                db.commit()
-                db.close()
-            else:
-                raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-        else:
-            raise HTTPException(status_code=400, detail=f"Camera record with ip_address = {cameraInfo.ip_address} is already exist")
+        db.commit()
+        db.close()
     else:
-        raise HTTPException(status_code=400, detail=f"Camera record with camera_id = {cameraInfo.camera_id} is already exist")
+        raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
         
     return camera
 
@@ -143,23 +136,18 @@ async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)
 
 @app.put("/Agents/{id}", response_model=schema.AgentBase)
 async def update_agent_info(id: int, agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
-    try:
-        _ = db.query(models.Agent).where(models.Agent.ip_address == agentInfo.ip_address).one()
-    except:
-        agent = db.query(models.Agent).get(id)
-
-        if agent:
-            agent.ip_address = agentInfo.ip_address
-            agent.hostname = agentInfo.hostname
-            agent.node_id = agentInfo.node_id
-            agent.agent_name = agentInfo.agent_name
-            agent.connected = agentInfo.connected
-            db.commit()
-            db.close()
-        else:
-            raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
+    agent = db.query(models.Agent).get(id)
+    
+    if agent:
+        agent.ip_address = agentInfo.ip_address
+        agent.hostname = agentInfo.hostname
+        agent.node_id = agentInfo.node_id
+        agent.agent_name = agentInfo.agent_name
+        agent.connected = agentInfo.connected
+        db.commit()
+        db.close()
     else:
-        raise HTTPException(status_code=400, detail=f"Agent record with ip_address = {agentInfo.ip_address} is already exist")
+        raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
     return agent
 
 @app.delete("/Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -211,31 +199,26 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
 
 @app.put("/DsInstance/{id}", response_model=schema.DsInstanceBase)
 def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, db: Session = Depends(get_db)):
-    try:
-        _ = db.query(models.DsInstance).where(models.DsInstance.instance_name == instanceInfo.instance_name).one()
-    except:
-        instance = db.query(models.DsInstance).get(id)
+    instance = db.query(models.DsInstance).get(id)
 
-        if instance:
-            instance.instance_name=instanceInfo.instance_name
-            instance.app_type=instanceInfo.app_type
-            instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
-            instance.mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic
-            instance.visual_topic=instanceInfo.visual_topic
-            instance.kafka_connection_str=instanceInfo.kafka_connection_str
-            instance.streammux_output_width=instanceInfo.streammux_output_width
-            instance.streammux_output_height=instanceInfo.streammux_output_height
-            instance.streammux_batch_size=instanceInfo.streammux_batch_size
-            instance.streammux_buffer_pool=instanceInfo.streammux_buffer_pool
-            instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
-            instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
-            instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
-            db.commit()
-            db.close()
-        else:
-            raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
+    if instance:
+        instance.instance_name=instanceInfo.instance_name
+        instance.app_type=instanceInfo.app_type
+        instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
+        instance.mot_raw_meta_topic=instanceInfo.mot_raw_meta_topic
+        instance.visual_topic=instanceInfo.visual_topic
+        instance.kafka_connection_str=instanceInfo.kafka_connection_str
+        instance.streammux_output_width=instanceInfo.streammux_output_width
+        instance.streammux_output_height=instanceInfo.streammux_output_height
+        instance.streammux_batch_size=instanceInfo.streammux_batch_size
+        instance.streammux_buffer_pool=instanceInfo.streammux_buffer_pool
+        instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
+        instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
+        instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
+        db.commit()
+        db.close()
     else:
-        raise HTTPException(status_code=400, detail=f"DsInstance record with instance_name = {instanceInfo.instance_name} is already exist")
+        raise HTTPException(status_code=404, detail=f"DsInstance item with id {id} not found")
 
     return instance
 
@@ -446,11 +429,7 @@ def create_sample_database(db: Session):
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host="172.21.100.242", port=4444)
+    uvicorn.run(app, host="0.0.0.0", port=4444)
     
     # db = Session(bind=engine)
     # create_sample_database(db)  
-
-        
-    
-    

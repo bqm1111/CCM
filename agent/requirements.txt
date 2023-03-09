@@ -1,2 +1,6 @@
+setuptools
 docker
 dynaconf
+confluent_kafka
+pydantic
+netifaces

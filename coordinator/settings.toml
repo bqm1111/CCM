@@ -1,1 +1,2 @@
 BOOTSTRAP_SERVER = '172.21.100.242:9092'
+check_exited_container_interval = 5

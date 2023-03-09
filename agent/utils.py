@@ -1,17 +1,17 @@
-import glob
 import json
 import os
 import subprocess
 import tarfile
 import time
-from io import BytesIO, StringIO
-from logging import Logger
+from io import BytesIO
 from typing import List, Tuple
 import logging
 import logging.config
 import docker
 from docker.models.containers import Container
 import netifaces
+import sys
+sys.path.append("../")
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    FACE_align_config, FACE_pgie_config,
                                    FACE_sgie_config, MOT_pgie_config,
@@ -26,7 +26,10 @@ LOGGER = logging.getLogger(__file__)
 
 def get_hardware_id():
     """get hardware id of machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
-    p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
+    p = subprocess.run(["cat", "/host-etc/machine-id"], capture_output=True)
+    if p.stdout.decode().rstrip() == "":
+        p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
+
     return p.stdout.decode().rstrip()
 
 def _read_deepstream_app_config(container:Container, filename) -> Tuple[bool, bytes]:
