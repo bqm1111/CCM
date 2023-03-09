@@ -12,7 +12,6 @@ WORKDIR /workspace
 
 COPY coordinator/ coordinator/
 RUN pip install -r coordinator/requirements.txt
-COPY sample_configs/ sample_configs/
 COPY schemas/ schemas/
 
 WORKDIR /workspace/coordinator/

@@ -335,3 +335,9 @@ erDiagram
         String status
     } 
 ```
+
+# Run using docker
+```bash
+docker compose -p x1agent -f docker-compose_agent.yml  up -d
+docker compose -p x1coordinator -f docker-compose_coordinator.yml up -d
+```

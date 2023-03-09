@@ -10,7 +10,16 @@ services:
 
         user: root
         container_name: agent
+        networks:
+            agent-net:
+                ipv4_address: 172.16.1.222
         volumes: 
             - /var/run/docker.sock:/var/run/docker.sock
             - /etc:/host-etc
+
+networks:
+    agent-net:
+        ipam:
+            config:
+                - subnet: 172.16.1.0/24
 

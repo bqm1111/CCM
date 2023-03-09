@@ -1,8 +1,0 @@
-netifaces
-pydantic
-docker
-dynaconf
-fastapi
-confluent_kafka
-sqlalchemy
-uvicorn

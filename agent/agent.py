@@ -159,8 +159,9 @@ def consume():
             DOCKER_CLIENT.volumes.prune()
             
         if msg.topic() == TOPIC222:
+            print("Receive TOPIC222")
             data = parse_raw_as(Topic222Model, msg.value())  
-            hostname = socket.gethostname()
+            hostname = utils.get_hostname()
             node_id = UUID4(utils.get_hardware_id())
             server_config = {}
             for machine in data.exited_list:

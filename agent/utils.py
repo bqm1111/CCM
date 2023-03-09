@@ -31,6 +31,13 @@ def get_hardware_id():
         p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
 
     return p.stdout.decode().rstrip()
+def get_hostname():
+    """get hardware id of machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
+    p = subprocess.run(["cat", "/host-etc/hostname"], capture_output=True)
+    if p.stdout.decode().rstrip() == "":
+        p = subprocess.run(["cat", "/etc/hostname"], capture_output=True)
+
+    return p.stdout.decode().rstrip()
 
 def _read_deepstream_app_config(container:Container, filename) -> Tuple[bool, bytes]:
     """Read a deepstream app config file in a container"""
