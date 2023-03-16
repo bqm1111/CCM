@@ -10,10 +10,11 @@ RUN mkdir -p ~/.config/pip && \
     > ~/.config/pip/pip.conf
 WORKDIR /workspace
 
-COPY coordinator/ coordinator/
+COPY coordinator/requirements.txt coordinator/requirements.txt
 RUN pip install -r coordinator/requirements.txt
-COPY sample_configs/ sample_configs/
+COPY coordinator/ coordinator/
 COPY schemas/ schemas/
 
 WORKDIR /workspace/coordinator/
+ENV TZ Asia/Ho_Chi_Minh
 CMD ["python", "app.py"]

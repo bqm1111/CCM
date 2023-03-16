@@ -10,6 +10,7 @@ import logging.config
 import docker
 from docker.models.containers import Container
 import netifaces
+import re
 import sys
 sys.path.append("../")
 from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
@@ -25,19 +26,39 @@ LOGGER = logging.getLogger(__file__)
 
 
 def get_hardware_id():
-    """get hardware id of machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
+    """get hardware id of host machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
     p = subprocess.run(["cat", "/host-etc/machine-id"], capture_output=True)
     if p.stdout.decode().rstrip() == "":
         p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
 
     return p.stdout.decode().rstrip()
+
+def get_ip_address():
+    """get ip address of host machine"""
+    data = None
+    p = subprocess.run(["cat", "/host-proc/net/fib_trie"], capture_output=True)
+    if p.stdout.decode().rstrip() == "":
+        with open("/proc/net/fib_trie", "r") as f:
+            data = f.readlines()
+    else:
+        with open("/host-proc/net/fib_trie", "r") as f:
+            data = f.readlines()
+    res = []
+    pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+    for i, text in enumerate(data):
+        if "/32 host LOCAL" in text:
+            res.append(pattern.search(data[i - 1])[0])
+    print(res)
+    return res
+
 def get_hostname():
-    """get hardware id of machine. eg. 7ca68a9b822e4abfaaa0c05fad5c6081"""
+    """get hostname of host machine"""
     p = subprocess.run(["cat", "/host-etc/hostname"], capture_output=True)
     if p.stdout.decode().rstrip() == "":
         p = subprocess.run(["cat", "/etc/hostname"], capture_output=True)
 
     return p.stdout.decode().rstrip()
+
 
 def _read_deepstream_app_config(container:Container, filename) -> Tuple[bool, bytes]:
     """Read a deepstream app config file in a container"""
@@ -109,12 +130,14 @@ def read_config(container: Container) -> Tuple[str, DsInstanceConfig]:
 
     return (container.name, instance_config)
 
+
 def copy_to_container(container: Container, src_path: str, dst_path: str):
     all_config_file = os.listdir(src_path)
     
     for file in all_config_file:
         with create_archive(os.path.join(src_path,file)) as archive:
             container.put_archive(path=dst_path, data=archive)
+
 
 def create_archive(file):
     pw_tarstream = BytesIO()
@@ -129,6 +152,7 @@ def create_archive(file):
     pw_tarstream.seek(0)
     return pw_tarstream
 
+
 def has_ip_address(ip_address: str):
     for interface in netifaces.interfaces():
         ip_data = netifaces.ifaddresses(interface)
@@ -136,6 +160,7 @@ def has_ip_address(ip_address: str):
             if ip_data[netifaces.AF_INET][0]['addr'] == ip_address:
                 return True
     return False
+
 
 if __name__ == "__main__":
     image_name = 'deepstream-app'

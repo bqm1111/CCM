@@ -47,6 +47,7 @@ class DsInstanceCreate(BaseModel):
     streammux_nvbuf_memory_type: int = 3
     face_confidence_threshold: float = 0.6
     mot_confidence_threshold: float = 0.6
+    gpu_id: int = 0
     status: str = ""
 
 class DsInstanceBase(DsInstanceCreate):

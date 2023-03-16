@@ -49,6 +49,7 @@ class DsInstance(Base):
     streammux_nvbuf_memory_type = Column(Integer, nullable=True)
     face_confidence_threshold = Column(Float, nullable=True)
     mot_confidence_threshold = Column(Float, nullable=True)
+    gpu_id = Column(Integer, nullable=False)
     status = Column(String, nullable=True)
     camera = relationship("Camera", back_populates="dsInstance")
     agent = relationship("Agent", back_populates="dsInstance")

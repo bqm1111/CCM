@@ -187,6 +187,7 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
                                 streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type,
                                 face_confidence_threshold=instanceInfo.face_confidence_threshold,
                                 mot_confidence_threshold=instanceInfo.mot_confidence_threshold,
+                                gpu_id=instanceInfo.gpu_id,
                                 status=instanceInfo.status
                                 )
     else:
@@ -215,6 +216,7 @@ def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, db: S
         instance.streammux_nvbuf_memory_type=instanceInfo.streammux_nvbuf_memory_type
         instance.face_confidence_threshold=instanceInfo.face_confidence_threshold   
         instance.mot_confidence_threshold=instanceInfo.mot_confidence_threshold
+        instance.gpu_id = instanceInfo.gpu_id
         db.commit()
         db.close()
     else:
@@ -375,7 +377,18 @@ async def refresh(db: Session = Depends(get_db)):
     topic301data = Topic301Model(desc="Refresh")
     PRODUCER.produce(TOPIC301, topic301data.json())
     return {"Sent acknowlege message to TOPIC301"}
-
+def add_camera_from_file(db: Session):
+    import csv
+    with open("camera.csv", "r") as f:
+        data = csv.reader(f)
+        for row in data:
+            camera = models.Camera(camera_id=int(row[0]), ip_address=row[1], username="admin", 
+                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
+            db.add(camera)
+            db.commit()
+            db.refresh(camera)
+    db.close()
+    
 def create_sample_database(db: Session):
     camera1 = models.Camera(camera_id=3, ip_address="172.21.111.101", username="admin", 
                             password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
@@ -432,4 +445,5 @@ if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=4444)
     
     # db = Session(bind=engine)
+    # add_camera_from_file(db)
     # create_sample_database(db)  

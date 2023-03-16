@@ -134,7 +134,6 @@ def generate_exited_instance_list():
         exited_list.append(ExitedInstanceInfo(hostname=agent.hostname, node_id=agent.node_id, exited_instance_name_list=exited_instance_name_list))
     return Topic222Model(exited_list=exited_list)       
 
-
 def generate_new_configuration():
     LOGGER.info("Generating new configuration from database")
     DATABASE.flush()
@@ -192,6 +191,11 @@ def generate_new_configuration():
             face_align_conf = FACE_align_config.parse_obj(face_align_json)
             mot_pgie_conf = MOT_pgie_config.parse_obj(mot_pgie_json)
             mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
+            face_pgie_conf.gpu_id = dsInstance.gpu_id
+            face_sgie_conf.gpu_id = dsInstance.gpu_id
+            mot_pgie_conf.gpu_id = dsInstance.gpu_id
+            mot_sgie_conf.gpu_id = dsInstance.gpu_id
+
             instance_config = DsInstanceConfig(appconfig=app_conf, 
                                     sourceconfig=source_conf,
                                     face_pgie=face_pgie_conf,

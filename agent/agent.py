@@ -178,7 +178,7 @@ def consume():
             data = parse_raw_as(Topic201Model, msg.value())
             if utils.has_ip_address(str(data.ip_address)):
                 LOGGER.info("Sending TOPIC200 to refresh connection")
-                hostname = socket.gethostname()
+                hostname = utils.get_hostname()
                 node_id = UUID4(utils.get_hardware_id())
                 PRODUCER.poll(0)
                 topic200data = Topic200Model(node_id=node_id, hostname=hostname, ip_address=str(data.ip_address))

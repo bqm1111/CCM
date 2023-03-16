@@ -1,3 +1,2 @@
-cd ../schemas && python create_topics.py && cd ../coordinator
-python app.py
+python ../schemas/create_topics.py
 python coordinator.py

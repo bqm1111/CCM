@@ -11,9 +11,11 @@ RUN mkdir -p ~/.config/pip && \
 
 WORKDIR /workspace
 
-COPY agent/ agent/
+COPY agent/requirements.txt agent/requirements.txt
 RUN pip install --upgrade pip && pip install -r agent/requirements.txt
+COPY agent/ agent/
 COPY schemas/ schemas/
 
 WORKDIR /workspace/agent/
+ENV TZ Asia/Ho_Chi_Minh
 CMD ["python", "agent.py"]

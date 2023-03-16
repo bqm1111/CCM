@@ -1,7 +1,25 @@
 version: '3.9'
 
+volumes: 
+    coordinator_camera_database:
 
 services:
+    fastapi_app:
+        build:
+            context: .
+            dockerfile: Dockerfile_app
+        image: fastapi_app:latest
+
+        user: root
+        container_name: fastapi_app
+        networks:
+            app-net:
+                ipv4_address: 172.16.2.224
+        ports:
+            - "4444:4444"
+        volumes:
+            - ./coordinator:/workspace/coordinator/
+
     coordinator:
         build:
             context: .
@@ -13,10 +31,15 @@ services:
         networks:
             coordinator-net:
                 ipv4_address: 172.16.0.223
-        ports:
-          - "4444:4444"
+        volumes:
+            - ./coordinator:/workspace/coordinator/
+
 networks:
     coordinator-net:
         ipam:
             config:
                 - subnet: 172.16.0.0/24
+    app-net:
+        ipam:
+            config:
+                - subnet: 172.16.2.0/24
