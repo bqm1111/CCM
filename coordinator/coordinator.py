@@ -193,6 +193,7 @@ def generate_new_configuration():
             mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
             face_pgie_conf.gpu_id = dsInstance.gpu_id
             face_sgie_conf.gpu_id = dsInstance.gpu_id
+            face_align_conf.gpu_id = dsInstance.gpu_id
             mot_pgie_conf.gpu_id = dsInstance.gpu_id
             mot_sgie_conf.gpu_id = dsInstance.gpu_id
 
@@ -256,7 +257,7 @@ def produce():
                         dsInstance = DATABASE.query(models.DsInstance).where(and_(models.DsInstance.agent_id == agent.id,
                                                                               models.DsInstance.instance_name == instance.instance_name)).one()
                     except NoResultFound:
-                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} in agent {agent.agent_name} is found in database")
+                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} was assigned to agent {agent.agent_name} in database")
                     else:
                         dsInstance.status = instance.state
                         DATABASE.commit()

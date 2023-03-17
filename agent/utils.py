@@ -120,6 +120,7 @@ def read_config(container: Container) -> Tuple[str, DsInstanceConfig]:
     source_conf = SourcesConfig(sources=source_list)
     
     
+    
     instance_config = DsInstanceConfig(appconfig=app_conf, 
                                      sourceconfig=source_conf,
                                      face_pgie=face_pgie_conf,
@@ -151,7 +152,6 @@ def create_archive(file):
     pw_tar.close()
     pw_tarstream.seek(0)
     return pw_tarstream
-
 
 def has_ip_address(ip_address: str):
     for interface in netifaces.interfaces():

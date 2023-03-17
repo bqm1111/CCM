@@ -10,18 +10,20 @@ services:
 
         user: root
         container_name: agent
-        networks:
-            agent-net:
-                ipv4_address: 172.16.1.222
+        # networks:
+        #     agent-net:
+        #         ipv4_address: 172.16.1.222
+        privileged: true
+        network_mode: "host"
 
         volumes: 
             - /var/run/docker.sock:/var/run/docker.sock
             - /etc:/host-etc
             - /proc:/host-proc
 
-networks:
-    agent-net:
-        ipam:
-            config:
-                - subnet: 172.16.1.0/24
+# networks:
+#     agent-net:
+#         ipam:
+#             config:
+#                 - subnet: 172.16.1.0/24
 

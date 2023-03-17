@@ -173,6 +173,7 @@ class FACE_sgie_config(SGIEConfig):
 
 class FACE_align_config(BaseModel):
     enable: NonNegativeInt = Field(1, const=True)
+    gpu_id: NonNegativeInt
     target_unique_ids: NonNegativeInt = Field(4, const=True, description="match the gie-unique-id of the faceid sgie")
     network_input_shape: constr(regex=r"^[\d;]*$") = Field("32;3;112;112")
     tensor_data_type: TensorDataType = Field(TensorDataType.FP32, const=True)
