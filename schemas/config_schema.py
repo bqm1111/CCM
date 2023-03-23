@@ -31,6 +31,7 @@ class DsAppConfig(BaseModel):
     streammux_nvbuf_memory_type: NonNegativeInt = 3
     face_confidence_threshold: PositiveFloat = 0.45
     mot_confidence_threshold: PositiveFloat = 0.45
+    gpu_id: int = 0
 
 
 class SingleSourceConfig(BaseModel):
@@ -40,6 +41,7 @@ class SingleSourceConfig(BaseModel):
     address: AnyUrl
     encode_type: EncodeType = EncodeType.H265
     type: str = Field("rtsp", const=True)
+    stream: bool = False
 
 
 class SourcesConfig(BaseModel):
@@ -267,7 +269,7 @@ def __write_test():
     face_pgie = FACE_pgie_config(
         gpu_id=0,
         batch_size=len(source.sources),
-        model_engine_file="../build/model_b12_gpu0_fp16.engine",
+        model_engine_file="../build/model_b24_gpu0_fp16.engine",
         labelfile_path="../data/labels/face_labels.txt",
         custom_lib_path="../build/src/facedetection/libnvds_facedetection.so",
     )

@@ -1,4 +1,4 @@
-IMAGE_NAME = 'deepstream-app'
+IMAGE_NAME = 'deepstream-app_ds61'
 IMAGE_TAG = 'latest'
 BOOTSTRAP_SERVER = '172.21.100.242:9092'
 check_container_status_interval = 5

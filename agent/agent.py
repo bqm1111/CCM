@@ -3,20 +3,18 @@ import logging.config
 import os
 import socket
 import time
-from typing import List, Optional
 
 import docker
-import requests as r
 import utils
-from confluent_kafka import Consumer, Message, Producer
+from confluent_kafka import Consumer, Producer
 from docker.models.containers import Container
 from dynaconf import Dynaconf
-from pydantic import UUID4, parse_obj_as, parse_raw_as
+from pydantic import UUID4, parse_raw_as
 
-from schemas.config_schema import DsAppConfig, DsInstanceConfig, write_config
-from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC222,
-                                  DsInstance, Topic200Model, Topic201Model, Topic222Model,
-                                  TOPIC210Model, Topic220Model, InstanceStatus)
+from schemas.config_schema import DsInstanceConfig, write_config
+from schemas.topic_schema import (TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC222, TOPIC302,
+                                  Topic302Model, Topic200Model, Topic201Model, Topic222Model,
+                                  Topic210Model, Topic220Model, InstanceStatus)
 
 settings = Dynaconf(settings_file='settings.toml')
 log_config = os.path.join(os.path.dirname(__file__), "logging.ini")
@@ -37,7 +35,7 @@ CONSUMER = Consumer(
     }
 )
 
-CONSUMER.subscribe([TOPIC201, TOPIC210, TOPIC222])
+CONSUMER.subscribe([TOPIC201, TOPIC210, TOPIC222, TOPIC302])
 
 PRODUCER = Producer({"bootstrap.servers": BOOTSTRAP_SERVER})
 
@@ -63,9 +61,10 @@ def update_container(container: Container, server_config: DsInstanceConfig, loca
             LOGGER.info(f"Container {container.name} restarted")
     else:
         LOGGER.info(f"Restarting container {container.name}. Config does not change")
+        if container.status == 'paused':
+            container.unpause()
         container.start()
         LOGGER.info(f"Container {container.name} restarted")
-
 
 def create_container(name: str, config: DsInstanceConfig):
     # Parse configuration from config and write it to a file
@@ -74,10 +73,10 @@ def create_container(name: str, config: DsInstanceConfig):
     # Run container with mounted config
     LOGGER.info(f"Creating container {name}")
     container_engine_volume = name + "_engine"
-
     DOCKER_CLIENT.containers.run(image=IMAGE_NAME,
                                        name=name,
-                                       # runtime="nvidia",
+                                       runtime="nvidia",
+                                       environment={"CUDA_VISIBLE_DEVICES": str(config.appconfig.gpu_id)},
                                        restart_policy={
                                            "Name": "on-failure", "MaximumRetryCount": 5},
                                        volumes={
@@ -108,7 +107,6 @@ def consume():
     while True:
         current = time.time()
         if current - start > settings.check_container_status_interval:
-            print("sending TOPIC220 to update status")
             start = current
             agent_states = []
             for _container in DOCKER_CLIENT.containers.list(all=True):
@@ -122,7 +120,6 @@ def consume():
         msg = CONSUMER.poll(1)
         # print(local_configs.keys())
         if msg is None:
-            print('.', end='', flush=True)
             continue
         if msg.error():
             LOGGER.error(f"Consumer error: {msg.error()}")
@@ -137,10 +134,11 @@ def consume():
                     continue
                 local_configs[_id] = _config
 
+        hostname = socket.gethostname()
+        node_id = UUID4(utils.get_hardware_id())
+        
         if msg.topic() == TOPIC210:
-            data = parse_raw_as(TOPIC210Model, msg.value())  
-            hostname = socket.gethostname()
-            node_id = UUID4(utils.get_hardware_id())
+            data = parse_raw_as(Topic210Model, msg.value())  
             server_config = {}
             for machine in data.agent_info_list:
                 if machine.node_id == node_id and machine.hostname == hostname:
@@ -156,10 +154,16 @@ def consume():
                     for container_name in set(local_configs) & set(server_config):
                         update_container(containers[container_name], server_config[container_name], local_configs[container_name])
             
-            DOCKER_CLIENT.volumes.prune()
+            # DOCKER_CLIENT.volumes.prune()
             
+        if msg.topic() == TOPIC302:
+            data = parse_raw_as(Topic302Model, msg.value())  
+            if data.node_id == node_id:
+                LOGGER.info(f"Trying to pause container {data.instance_name}")
+                containers[data.instance_name].pause()
+                LOGGER.info(f"Container named {data.instance_name} is paused")
+
         if msg.topic() == TOPIC222:
-            print("Receive TOPIC222")
             data = parse_raw_as(Topic222Model, msg.value())  
             hostname = utils.get_hostname()
             node_id = UUID4(utils.get_hardware_id())
@@ -183,7 +187,6 @@ def consume():
                 PRODUCER.poll(0)
                 topic200data = Topic200Model(node_id=node_id, hostname=hostname, ip_address=str(data.ip_address))
                 PRODUCER.produce(TOPIC200, topic200data.json())
-
 
 
 def main():

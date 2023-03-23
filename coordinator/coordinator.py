@@ -25,8 +25,9 @@ from schemas.config_schema import (DsAppConfig, DsInstanceConfig,
                                    MOT_sgie_config, SingleSourceConfig,
                                    SourcesConfig, parse_txt_as)
 from schemas.topic_schema import (TOPIC301,TOPIC200, TOPIC201, TOPIC210, TOPIC220, TOPIC300, TOPIC222,
+                                  TOPIC302, Topic302Model,
                                   DsInstance, NodeInfo, ExitedInstanceInfo, Topic200Model,
-                                  Topic201Model, TOPIC210Model, Topic220Model, Topic222Model
+                                  Topic201Model, Topic210Model, Topic220Model, Topic222Model
                                   )
 
 settings = Dynaconf(settings_file='settings.toml')
@@ -115,7 +116,7 @@ def create_sample_TOPIC210():
 
     hostname = socket.gethostname()
     node_id = UUID4(get_hardware_id())
-    return TOPIC210Model(agent_info_list=[NodeInfo(hostname=hostname,
+    return Topic210Model(agent_info_list=[NodeInfo(hostname=hostname,
                                                 node_id=node_id,
                                                 node_config_list=deepstream_instance_info_list)])
 def generate_exited_instance_list():
@@ -167,6 +168,7 @@ def generate_new_configuration():
                     source["address"] = rtsp_address
                     source["encode_type"] = cam.encodeType
                     source["type"] = cam.type
+                    source["stream"] = cam.stream
                     source_list.append(SingleSourceConfig.parse_obj(source))
             source_conf = SourcesConfig(sources=source_list)
             app_config = dsInstance.to_app_conf_dict()
@@ -191,11 +193,13 @@ def generate_new_configuration():
             face_align_conf = FACE_align_config.parse_obj(face_align_json)
             mot_pgie_conf = MOT_pgie_config.parse_obj(mot_pgie_json)
             mot_sgie_conf = MOT_sgie_config.parse_obj(mot_sgie_json)
-            face_pgie_conf.gpu_id = dsInstance.gpu_id
-            face_sgie_conf.gpu_id = dsInstance.gpu_id
-            face_align_conf.gpu_id = dsInstance.gpu_id
-            mot_pgie_conf.gpu_id = dsInstance.gpu_id
-            mot_sgie_conf.gpu_id = dsInstance.gpu_id
+            batch_size = dsInstance.streammux_batch_size
+            face_pgie_conf.model_engine_file = "../build/model_b" + str(batch_size) + "_gpu0_fp16.engine"
+            face_pgie_conf.batch_size = batch_size
+            face_align_conf.network_input_shape = str(batch_size * 4) +";3;112;112"
+            face_sgie_conf.batch_size = batch_size * 4
+            mot_pgie_conf.batch_size = batch_size
+            mot_sgie_conf.batch_size = batch_size
 
             instance_config = DsInstanceConfig(appconfig=app_conf, 
                                     sourceconfig=source_conf,
@@ -204,13 +208,12 @@ def generate_new_configuration():
                                     face_align=face_align_conf,
                                     mot_pgie=mot_pgie_conf,
                                     mot_sgie=mot_sgie_conf)
-            
             instance_info_list.append(DsInstance(name=dsInstance.instance_name,
                                                  config=instance_config))
         agent_info_list.append(NodeInfo(hostname=hostname,
                                         node_id=node_id,
                                         node_config_list=instance_info_list))
-    return TOPIC210Model(agent_info_list=agent_info_list)
+    return Topic210Model(agent_info_list=agent_info_list)
 
 
 def update_configuration():
@@ -271,8 +274,7 @@ def produce():
             for agent in all_agents:
                 topic201data = create_TOPIC201(agent=agent, name="VTX")    
                 PRODUCER.poll(0)
-                PRODUCER.produce(TOPIC201, topic201data.json())
-
+                PRODUCER.produce(TOPIC201, topic201data.json())            
                 
 
 def create_TOPIC201(agent: models.Agent, name: str):

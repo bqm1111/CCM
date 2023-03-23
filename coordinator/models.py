@@ -15,6 +15,7 @@ class Camera(Base):
     password = Column(String, nullable=True)
     encodeType = Column(String, nullable=False)
     type = Column(String, nullable=False)
+    stream = Column(Boolean, nullable=False)
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     agent = relationship("Agent", back_populates="camera")
@@ -68,4 +69,5 @@ class DsInstance(Base):
         app_config["streammux_nvbuf_memory_type"] = self.streammux_nvbuf_memory_type
         app_config["face_confidence_threshold"] = self.face_confidence_threshold
         app_config["mot_confidence_threshold"] = self.mot_confidence_threshold
+        app_config["gpu_id"] = self.gpu_id
         return app_config

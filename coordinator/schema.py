@@ -22,6 +22,7 @@ class CameraCreate(BaseModel):
     password: str = "123456a@"
     encodeType: str = "h265"
     type: str = "rtsp"
+    stream: bool = False
     width: int = "3840"
     height: int = "2160"
     

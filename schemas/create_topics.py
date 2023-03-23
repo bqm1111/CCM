@@ -10,6 +10,7 @@ TOPIC220 = "AgentResponse"
 TOPIC222 = "ExitedInstance"
 TOPIC300 = "UpdateConfig"
 TOPIC301 = "Refresh"
+TOPIC302 = "PauseInstance"
 
 admin_client = AdminClient(
     {
@@ -24,7 +25,8 @@ topic_list: List[NewTopic] = [
     NewTopic(topic=TOPIC220, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC222, num_partitions=1, replication_factor=1),
     NewTopic(topic=TOPIC300, num_partitions=1, replication_factor=1),
-    NewTopic(topic=TOPIC301, num_partitions=1, replication_factor=1)
+    NewTopic(topic=TOPIC301, num_partitions=1, replication_factor=1),
+    NewTopic(topic=TOPIC302, num_partitions=1, replication_factor=1)
     ]
 
 # validate before doing anything

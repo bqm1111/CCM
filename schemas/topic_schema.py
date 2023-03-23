@@ -12,6 +12,7 @@ TOPIC220 = "AgentResponse"
 TOPIC222 = "ExitedInstance"
 TOPIC300 = "UpdateConfig"
 TOPIC301 = "Refresh"
+TOPIC302 = "PauseInstance"
 
 class DsInstance(BaseModel):
     name: str
@@ -52,7 +53,7 @@ class Topic201Model(BaseModel):
         title = "AgentCommand"
 
 
-class TOPIC210Model(BaseModel):
+class Topic210Model(BaseModel):
     """Announce new configuration for agents"""  
     agent_info_list: List[NodeInfo]
     class Config:
@@ -85,6 +86,14 @@ class Topic301Model(BaseModel):
     class Config:
         title = "Refresh"
 
+class Topic302Model(BaseModel):
+    """Sent message to stop an instance"""
+    instance_name: str
+    node_id: UUID4
+    class Config:
+        title = "PauseInstance"
+        
+        
 if __name__ == "__main__":
     p = subprocess.run(["cat", "/etc/machine-id"], capture_output=True)
     print(UUID4(p.stdout.decode().rstrip()))

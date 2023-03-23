@@ -10,7 +10,7 @@ from dynaconf import Dynaconf
 import sys
 sys.path.append("../")
 
-from schemas.topic_schema import (Topic300Model,Topic301Model, TOPIC301, TOPIC300)
+from schemas.topic_schema import (Topic300Model,Topic301Model, Topic302Model, TOPIC302, TOPIC301, TOPIC300)
 import uvicorn
 
 Base.metadata.create_all(engine)
@@ -64,6 +64,7 @@ async def add_camera(cameraInfo: schema.CameraCreate, db: Session = Depends(get_
                                         password=cameraInfo.password,
                                         encodeType=cameraInfo.encodeType,
                                         type=cameraInfo.type,
+                                        stream=cameraInfo.stream,
                                         width=cameraInfo.width,
                                         height=cameraInfo.height)
             db.add(new_camera)
@@ -81,12 +82,22 @@ async def update_camera_info(id: int, cameraInfo: schema.CameraCreate, db: Sessi
     camera = db.query(models.Camera).get(id)
 
     if camera:
+        existed_cam = db.query(models.Camera).where(models.Camera.camera_id == cameraInfo.camera_id).all()
+        if len(existed_cam) > 0:
+            if existed_cam[0].id != id:
+                raise HTTPException(status_code=400, detail=f"Camera record with camera_id = {cameraInfo.camera_id} is already exist")
+            
+        existed_cam = db.query(models.Camera).where(models.Camera.ip_address == cameraInfo.ip_address).all()
+        if len(existed_cam) > 0:
+            if existed_cam[0].id != id:
+                raise HTTPException(status_code=400, detail=f"Camera record with ip_address = {cameraInfo.ip_address} is already exist")
         camera.camera_id = cameraInfo.camera_id
         camera.ip_address = cameraInfo.ip_address
         camera.username = cameraInfo.username
         camera.password = cameraInfo.password
         camera.encodeType = cameraInfo.encodeType
         camera.type = cameraInfo.type
+        camera.stream = cameraInfo.stream
         camera.width = cameraInfo.width
         camera.height = cameraInfo.height
 
@@ -94,7 +105,7 @@ async def update_camera_info(id: int, cameraInfo: schema.CameraCreate, db: Sessi
         db.close()
     else:
         raise HTTPException(status_code=404, detail=f"camera item with id {id} not found")
-        
+
     return camera
 
 @app.delete("/Cameras/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -111,10 +122,24 @@ async def delete_camera(id: int, session: Session = Depends(get_db)):
     return {f"Successfully deleted camera record with id = {id}"}
 
 ############################### AGENT ############################################################
+@app.get("/Agent/get_dsInstance", status_code=status.HTTP_200_OK)
+async def get_dsInstance_from_agent(agent_ip: str, db: Session = Depends(get_db)):
+    try:
+        agent = db.query(models.Agent).where(models.Agent.ip_address == agent_ip).one()
+    except:
+        raise HTTPException(status_code=400, detail=f"Cannot found agent named {agent_ip} in database")    
+    else:
+        try:
+            instance = db.query(models.DsInstance).where(models.DsInstance.agent_id == agent.id).all()
+        except:
+            raise HTTPException(status_code=400, detail=f"No dsInstance was assigned to agent with ip address {agent_ip} in database")    
+        else:
+            return instance
+
 @app.get("/Agent/all_agent")
 async def get_all_agent(db: Session = Depends(get_db)):
-    camera = db.query(models.Agent).all()
-    return camera
+    agent = db.query(models.Agent).all()
+    return agent
 
 @app.post("/Agents", response_model=schema.AgentBase, status_code=status.HTTP_201_CREATED)
 async def add_agent(agentInfo: schema.AgentCreate, db: Session = Depends(get_db)):
@@ -139,6 +164,11 @@ async def update_agent_info(id: int, agentInfo: schema.AgentCreate, db: Session 
     agent = db.query(models.Agent).get(id)
     
     if agent:
+        existed_agent = db.query(models.Agent).where(models.Agent.ip_address == agentInfo.ip_address).all()
+        if len(existed_agent) > 0:
+            if existed_agent[0].id != id:
+                raise HTTPException(status_code=400, detail=f"Agent record with ip_address = {agentInfo.ip_address} is already exist")
+                
         agent.ip_address = agentInfo.ip_address
         agent.hostname = agentInfo.hostname
         agent.node_id = agentInfo.node_id
@@ -148,6 +178,7 @@ async def update_agent_info(id: int, agentInfo: schema.AgentCreate, db: Session 
         db.close()
     else:
         raise HTTPException(status_code=404, detail=f"agent item with id {id} not found")
+
     return agent
 
 @app.delete("/Agents/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -164,10 +195,36 @@ def delete_agent(id: int, session: Session = Depends(get_db)):
     return {f"Successfully deleted agent record with id = {id}"}
 
 ############################### DSINSTANCE ############################################################
-@app.get("/DsInstance/all_instance")
+@app.get("/DsInstance/get_camera", status_code=status.HTTP_200_OK)
+async def get_camera_from_instance(instance_name: str, db: Session = Depends(get_db)):
+    try:
+        instance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except:
+        raise HTTPException(status_code=404, detail=f"Cannot found instance named {instance_name} in database")    
+    else:
+        try:
+            camera = db.query(models.Camera).where(models.Camera.dsInstance_id == instance.id).all()
+        except:
+            raise HTTPException(status_code=404, detail=f"No camera was assigned to instance named {instance_name} in database")    
+        else:
+            return camera
+
+
+@app.get("/DsInstance/all_instance", status_code=status.HTTP_200_OK)
 async def get_all_dsInstance(db: Session = Depends(get_db)):
-    camera = db.query(models.DsInstance).all()
-    return camera
+    instance = db.query(models.DsInstance).all()
+    return instance
+
+
+@app.get("/DsInstance/get_instance_info", status_code=status.HTTP_200_OK)
+async def get_instance_info(instance_name: str, db: Session = Depends(get_db)):
+    try:
+        instance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except:
+        raise HTTPException(status_code=404, detail=f"Instance named {instance_name} is not found in database")    
+    else:
+        return instance
+
 
 @app.post("/DsInstance", response_model=schema.DsInstanceBase, status_code=status.HTTP_201_CREATED)
 async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = Depends(get_db)):
@@ -190,11 +247,11 @@ async def add_dsInstance(instanceInfo: schema.DsInstanceCreate, db: Session = De
                                 gpu_id=instanceInfo.gpu_id,
                                 status=instanceInfo.status
                                 )
+        db.add(new_agent)
+        db.commit()
+        db.close()
     else:
         raise HTTPException(status_code=400, detail=f"DsInstance record with instance_name = {instanceInfo.instance_name} is already exist")
-    db.add(new_agent)
-    db.commit()
-    db.close()
     
     return new_agent
 
@@ -203,6 +260,11 @@ def update_dsInstance_info(id: int, instanceInfo: schema.DsInstanceCreate, db: S
     instance = db.query(models.DsInstance).get(id)
 
     if instance:
+        existed_instance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instanceInfo.instance_name).all()
+        if len(existed_instance) > 0:
+            if existed_instance[0].id != id:
+                raise HTTPException(status_code=400, detail=f"DsInstance record with instance_name = {instanceInfo.instance_name} is already exist")
+
         instance.instance_name=instanceInfo.instance_name
         instance.app_type=instanceInfo.app_type
         instance.face_raw_meta_topic=instanceInfo.face_raw_meta_topic
@@ -352,11 +414,27 @@ async def remove_agent_instance_association(instance_name: str, db: Session = De
         raise HTTPException(status_code=404, detail=f"DsInstance item with name {instance_name} not found")
     
     dsInstance.agent_id = None
+    dsInstance.status = "Not assigned"
     db.commit()
     db.close()
     
     return {"instance": dsInstance}
 
+@app.post("/Pause_Instance", status_code=status.HTTP_201_CREATED)
+async def pause_instance(instance_name: str, db: Session = Depends(get_db)):
+    try:
+        instance = db.query(models.DsInstance).where(models.DsInstance.instance_name == instance_name).one()
+    except:
+        raise HTTPException(status_code=404, detail=f"Instance named {instance_name} is not found")
+    else:
+        if instance.agent_id is not None:
+            agent = db.query(models.Agent).where(models.Agent.id == instance.agent_id).one()
+        else:
+            raise HTTPException(status_code=404, detail=f"Instance named {instance_name} is not assigned to any agent")
+
+    PRODUCER.poll(0)
+    PRODUCER.produce(TOPIC302, Topic302Model(instance_name=instance_name, node_id= agent.node_id).json())
+    return {"Sent acknowlege message to TOPIC302"}
 
 @app.post("/Update_config", status_code=status.HTTP_201_CREATED)
 async def update_config():
@@ -379,25 +457,29 @@ async def refresh(db: Session = Depends(get_db)):
     return {"Sent acknowlege message to TOPIC301"}
 def add_camera_from_file(db: Session):
     import csv
+    with open("reachable.csv", "r") as f:
+        data = csv.reader(f)
+        reachable = [row for row in data]
     with open("camera.csv", "r") as f:
         data = csv.reader(f)
         for row in data:
-            camera = models.Camera(camera_id=int(row[0]), ip_address=row[1], username="admin", 
-                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
-            db.add(camera)
-            db.commit()
-            db.refresh(camera)
+            if [row[1]] in reachable:
+                camera = models.Camera(agent_id=1, dsInstance_id=1, camera_id=int(row[0]), ip_address=row[1], username="admin", 
+                                password="123456a@", encodeType="h265", type="rtsp", stream=False, width=3840, height=2160)
+                db.add(camera)
+                db.commit()
+                db.refresh(camera)
     db.close()
     
 def create_sample_database(db: Session):
     camera1 = models.Camera(camera_id=3, ip_address="172.21.111.101", username="admin", 
-                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
+                            password="123456a@", encodeType="h265", type="rtsp", stream=False,width=3840, height=2160)
     camera2 = models.Camera(camera_id=1, ip_address="172.21.111.104", username="admin", 
-                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
+                            password="123456a@", encodeType="h265", type="rtsp", stream=False, width=3840, height=2160)
     camera3 = models.Camera(camera_id=2, ip_address="172.21.111.111", username="admin", 
-                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
+                            password="123456a@", encodeType="h265", type="rtsp", stream=False, width=3840, height=2160)
     camera4 = models.Camera(camera_id=4, ip_address="172.21.104.112", username="admin", 
-                            password="123456a@", encodeType="h265", type="rtsp", width=3840, height=2160)
+                            password="123456a@", encodeType="h265", type="rtsp", stream=False, width=3840, height=2160)
     
     agent1 = models.Agent(agent_name="VTX", ip_address="172.21.100.242")
     agent2 = models.Agent(agent_name="VHT", ip_address="172.21.100.167")
