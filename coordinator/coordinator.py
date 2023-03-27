@@ -12,7 +12,7 @@ from dynaconf import Dynaconf
 import models
 from confluent_kafka import Consumer, Producer
 from database import Base, SessionLocal, engine
-from pydantic import UUID4, parse_raw_as
+from pydantic import UUID4, parse_raw_as, ValidationError
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import and_
@@ -238,32 +238,40 @@ def produce():
             LOGGER.error(f"Consumer error")
 
         if msg.topic() == TOPIC200:
-            data = parse_raw_as(Topic200Model, msg.value())
-            agent = DATABASE.query(models.Agent).where(models.Agent.ip_address == str(data.ip_address)).one()
-            
-            agent.hostname = data.hostname
-            agent.node_id = str(data.node_id)
-            agent.connected = True
-            DATABASE.commit()       
+            try:
+                data = parse_raw_as(Topic200Model, msg.value())
+            except ValidationError as e:
+                LOGGER.error(f"{e}")
+            else:
+                agent = DATABASE.query(models.Agent).where(models.Agent.ip_address == str(data.ip_address)).one()
+                
+                agent.hostname = data.hostname
+                agent.node_id = str(data.node_id)
+                agent.connected = True
+                DATABASE.commit()       
                 
         if msg.topic() == TOPIC220:
-            data = parse_raw_as(Topic220Model, msg.value())
-            node_id = str(data.node_id)
             try:
-                agent = DATABASE.query(models.Agent).where(models.Agent.node_id == node_id).one()
-            except NoResultFound:
-                LOGGER.warning(f"No agent with node_id {node_id} is found in database")
+                data = parse_raw_as(Topic220Model, msg.value())
+            except ValidationError as e:
+                LOGGER.error(f"{e}")
             else:
-                status_list = data.status
-                for instance in status_list:
-                    try:
-                        dsInstance = DATABASE.query(models.DsInstance).where(and_(models.DsInstance.agent_id == agent.id,
-                                                                              models.DsInstance.instance_name == instance.instance_name)).one()
-                    except NoResultFound:
-                        LOGGER.warning(f"No dsInstance with name {instance.instance_name} was assigned to agent {agent.agent_name} in database")
-                    else:
-                        dsInstance.status = instance.state
-                        DATABASE.commit()
+                node_id = str(data.node_id)
+                try:
+                    agent = DATABASE.query(models.Agent).where(models.Agent.node_id == node_id).one()
+                except NoResultFound:
+                    LOGGER.warning(f"No agent with node_id {node_id} is found in database")
+                else:
+                    status_list = data.status
+                    for instance in status_list:
+                        try:
+                            dsInstance = DATABASE.query(models.DsInstance).where(and_(models.DsInstance.agent_id == agent.id,
+                                                                                models.DsInstance.instance_name == instance.instance_name)).one()
+                        except NoResultFound:
+                            LOGGER.warning(f"No dsInstance with name {instance.instance_name} was assigned to agent {agent.agent_name} in database")
+                        else:
+                            dsInstance.status = instance.state
+                            DATABASE.commit()
                         
         if msg.topic() == TOPIC300:
             update_configuration()
