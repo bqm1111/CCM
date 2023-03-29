@@ -22,50 +22,108 @@ graph TD
 
 
 The work flow of the system is illustrated in the following diagram 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Coordinator
-    participant A as Agent
-    participant D as Deepstream-app
-    Note over U,C: Typical backend-frontend interaction
-    Note over C,A: Async through Kafka
-    Note over A,D: Docker Python API
+```plantuml
+@startuml
+actor User as U
+box "one machine"
+participant App
+database DB
+participant Coordinator as C
+end box
+box "one machine"
+participant Agent as A
+participant "Deepstream-app" as D
+end box
+hnote over U, App
+HTTP
+end note
 
-    rect rgb(100, 100, 100)
-    activate C
-    A-)C: Greating, I'm "agent_id", here's the info about me (topic 200)
-    C->>C: Update vào database
-    C--)A: You are allowed to enter our system (topic 201)
-    deactivate C
-    end
+/ hnote over C, A
+Async through Kafka
+end note
 
-    rect rgb(100, 100, 100)
-    U->>U: CRUD camera, chọn mode (debug or not)
-    U->>C: Tạo update request
-    activate C
-    C->>C: Update vào database
-    C-->>U: Hear you, will update soon
-    C->>C: Generate new configuration
-    C-)+A: new configuration (topic 210)
-    deactivate C
-    A->>A: Tự đối chiếu configuration
-    A->>+D: Delete or Create container
-    D-->>-A: Im up already
-    activate C
-    C-->>U: update UI
-    deactivate C
-    end
+hnote over A, D
+Docker Python API
+end note
 
-    rect rgb(100, 100, 100)
-    loop Every 5 seconds
-    activate A
-    A->>+D: All instance are OK?
-    D-->>-A: Status of instances
-    A-)C: I'm doing great, here's my status (topic 220)
-    deactivate A
-    end
-    end
+/ hnote over App, C
+2 ways of communication
+- share file: use a same database
+- message: App can send to Coordinator
+end note
+
+loop UI update every 1 second
+U -> App: update UI for me
+activate App #ABCDEE
+App -> DB
+DB --> App
+App --> U: here
+deactivate App
+end 
+
+group CRUD Agent
+
+U -> App: Update button pressed
+activate App  #ABCDEE
+App -[#AA00FF]> C: Reresh\nTopic 301
+activate C  #ABCDEE
+App --> U: Topic 301 emitted
+deactivate App
+C -[#AA00FF]> A: Give me your information\nGive agent a name\nTopic 201\n<color red>broadcast</color>
+activate A  #ABCDEE
+A -[#AA00FF]> C: Here's the information about me\nTopic 200
+deactivate A
+C -> DB
+deactivate C
+end
+
+group CRUD Camera and Instances
+
+group CRUD
+note over U
+User can do bunch
+of CRUD
+end note
+U -> App: CRUD request
+activate App  #ABCDEE
+App -> DB
+DB --> App
+App --> U: recorded, not "APPLY" yet
+deactivate App
+end
+
+group Apply
+note over U
+Now apply changes
+end note
+U -> App: Apply changes
+App -[#AA00FF]> C: Topic 300 (Apply changes)
+activate C  #ABCDEE
+C -> C: Generate new configuration
+deactivate C
+C -[#AA00FF]> A: new configuration\nTopic 210
+activate A  #ABCDEE
+A -> A: self check the configuration
+note right
+check if there are 
+any container should be 
+delete or any container 
+should be create
+end note
+A -> D: Delete/Create/Restart Container
+deactivate A
+
+loop every 5 seconds
+A -> D: container status?
+D --> A: container status
+deactivate D
+A -[#AA00FF]> C: Update status\nTopic 220
+C -> DB
+end
+end
+end
+
+@end
 ```
 
 # Run 

@@ -216,7 +216,7 @@ def consume():
                             containers[container_name].start()
                             LOGGER.info(f"Container {container_name} restarted")
 
-                        
+
         if msg.topic() == TOPIC201:
             try:
                 data = parse_raw_as(Topic201Model, msg.value())

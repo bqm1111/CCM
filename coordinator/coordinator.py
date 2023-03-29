@@ -283,7 +283,7 @@ def produce():
                 topic201data = create_TOPIC201(agent=agent, name="VTX")    
                 PRODUCER.poll(0)
                 PRODUCER.produce(TOPIC201, topic201data.json())            
-                
+     
 
 def create_TOPIC201(agent: models.Agent, name: str):
     if not agent.agent_name:
