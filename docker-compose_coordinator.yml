@@ -12,13 +12,33 @@ services:
 
         user: root
         container_name: fastapi_app
-        networks:
-            app-net:
-                ipv4_address: 172.16.2.224
         ports:
             - "4444:4444"
         volumes:
             - ./coordinator:/workspace/coordinator/
+        labels:
+            # Declare traefik routers
+            - "traefik.enable=true"
+            # - "traefik.http.routers.coordinator.rule=PathPrefix(`/api/xface/v1/coordinator`)"
+            - "traefik.http.routers.coordinator.rule=PathPrefix(`/api/xface/v1/coordinator`)"
+            - "traefik.http.routers.coordinator.entrypoints=web"
+            - "traefik.http.routers.coordinator.service=coordinator-service"
+            - "traefik.http.routers.coordinator.middlewares=strip-coordinator-prefix"
+            - "traefik.http.middlewares.strip-coordinator-prefix.stripprefix.prefixes=/api/xface/v1/coordinator"
+            # - "traefik.http.routers.coordinator.middlewares=authorization"
+            
+            # Declare traefik services
+            - "traefik.http.services.coordinator-service.loadbalancer.server.port=${COORDINATOR_SERVICE_PORT:-4444}"
+            # - "traefik.http.services.coordinator-service.loadbalancer.healthcheck.path=/"
+            # - "traefik.http.services.coordinator-service.loadbalancer.healthcheck.interval=5s"
+            # - "traefik.http.services.coordinator-service.loadbalancer.healthcheck.timeout=30s"
+            # - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.port=9031"
+
+            # Declare traefik middlewares
+            # - "traefik.http.middlewares.authorization.forwardauth.address=http://${ACCOUNT_SERVICE_CONTAINER_NAME:-account-service}:${ACCOUNT_SERVICE_PORT:-9031}/api/xface/v1/accounts/auth"
+            # - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
+        networks:
+            - services-network
 
     coordinator:
         build:
@@ -29,17 +49,11 @@ services:
         user: root
         container_name: coordinator
         networks:
-            coordinator-net:
-                ipv4_address: 172.16.0.223
+            - services-network
         volumes:
             - ./coordinator:/workspace/coordinator/
 
 networks:
-    coordinator-net:
-        ipam:
-            config:
-                - subnet: 172.16.0.0/24
-    app-net:
-        ipam:
-            config:
-                - subnet: 172.16.2.0/24
+  services-network:
+    external:
+      name: ${COORDINATOR_SERVICES_NETWORK}
